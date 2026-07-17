@@ -14,6 +14,7 @@ import { MealPlansModule } from './modules/meal-plans/meal-plans.module';
 import { NutritionModule } from './modules/nutrition/nutrition.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ProfilesModule } from './modules/profiles/profiles.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     SupabaseModule,
     HealthModule,
     AuthModule,
+    ProfilesModule,
     NutritionModule,
     AiInsightsModule,
     SubscriptionsModule,

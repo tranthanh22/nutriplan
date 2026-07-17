@@ -17,6 +17,20 @@ export class CatalogController {
     return this.catalog.preview();
   }
 
+  @Public()
+  @Get('allergens')
+  @ApiOperation({ summary: 'Danh mục chất gây dị ứng đang sử dụng' })
+  allergens() {
+    return this.catalog.allergens();
+  }
+
+  @Public()
+  @Get(':id')
+  @ApiOperation({ summary: 'Chi tiết dinh dưỡng và dị ứng của món; không trả công thức' })
+  detail(@Param('id', ParseUUIDPipe) dishId: string) {
+    return this.catalog.detail(dishId);
+  }
+
   @ApiBearerAuth()
   @Get(':id/recipe')
   @ApiOperation({ summary: 'Recipe chi tiết dành cho subscriber' })

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -27,5 +27,20 @@ export class NutritionController {
   @ApiOperation({ summary: 'Lấy hồ sơ dinh dưỡng hiện hành' })
   current(@CurrentUser() user: AuthUser) {
     return this.nutrition.getCurrent(user);
+  }
+
+  @Get('versions')
+  @ApiOperation({ summary: 'Lấy lịch sử các phiên bản hồ sơ dinh dưỡng' })
+  versions(@CurrentUser() user: AuthUser) {
+    return this.nutrition.getVersions(user);
+  }
+
+  @Get('versions/:version')
+  @ApiOperation({ summary: 'Lấy một phiên bản hồ sơ dinh dưỡng' })
+  version(
+    @CurrentUser() user: AuthUser,
+    @Param('version', ParseIntPipe) version: number,
+  ) {
+    return this.nutrition.getVersion(user, version);
   }
 }

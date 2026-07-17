@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
+  BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -8,8 +10,12 @@ import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { SupabaseService } from '../../database/supabase.service';
 import { NutritionService } from '../nutrition/nutrition.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
-import { OpenAiHealthInsightProvider } from './openai-health-insight.provider';
 import type { NutritionProfileRecord } from '../nutrition/nutrition-profile.interface';
+import { AiHealthInputSchema } from './ai-health-input.schema';
+import {
+  HEALTH_INSIGHT_PROVIDER,
+  type HealthInsightProvider,
+} from './health-insight-provider.interface';
 
 const PROMPT_VERSION = 'health-insight-v1';
 
@@ -28,7 +34,8 @@ export class AiInsightsService {
     private readonly supabase: SupabaseService,
     private readonly nutrition: NutritionService,
     private readonly subscriptions: SubscriptionsService,
-    private readonly provider: OpenAiHealthInsightProvider,
+    @Inject(HEALTH_INSIGHT_PROVIDER)
+    private readonly provider: HealthInsightProvider,
   ) {}
 
   async latest(user: AuthUser) {
@@ -42,13 +49,16 @@ export class AiInsightsService {
     const profile = await this.nutrition.getCurrent(user);
     const input = this.buildMinimalInput(profile);
     const inputFingerprint = this.hash(JSON.stringify(input));
-    const cached = await this.findCached(profile.id, inputFingerprint);
-    if (cached) return this.present(user, cached);
+    const existing = await this.findExisting(profile.id, inputFingerprint);
+    if (existing?.status === 'completed') return this.present(user, existing);
+    if (existing && ['pending', 'processing'].includes(existing.status)) {
+      return this.processing(existing);
+    }
 
     const admin = this.supabase.getAdminClient();
     const baseRecord = {
       nutrition_profile_id: profile.id,
-      provider: 'openai',
+      provider: this.provider.providerName,
       model: this.provider.modelName,
       prompt_version: PROMPT_VERSION,
       formula_version: profile.formula_version,
@@ -57,16 +67,37 @@ export class AiInsightsService {
       status: 'processing',
       safety_status: 'pending',
     };
-    const { data: row, error: insertError } = await admin
-      .from('ai_health_insights')
-      .insert(baseRecord)
-      .select('id')
-      .single();
+    let row: { id: string };
+    if (existing?.status === 'failed') {
+      const { data, error } = await admin
+        .from('ai_health_insights')
+        .update({
+          status: 'processing',
+          safety_status: 'pending',
+          error_code: null,
+          error_message: null,
+        })
+        .eq('id', existing.id)
+        .eq('status', 'failed')
+        .select('id')
+        .maybeSingle();
+      if (error) throw new InternalServerErrorException(error.message);
+      if (!data) return this.processing(existing);
+      row = data;
+    } else {
+      const { data, error: insertError } = await admin
+        .from('ai_health_insights')
+        .insert(baseRecord)
+        .select('id')
+        .single();
 
-    if (insertError) {
-      const raced = await this.findCached(profile.id, inputFingerprint);
-      if (raced) return this.present(user, raced);
-      throw new InternalServerErrorException(insertError.message);
+      if (insertError) {
+        const raced = await this.findExisting(profile.id, inputFingerprint);
+        if (raced?.status === 'completed') return this.present(user, raced);
+        if (raced) return this.processing(raced);
+        throw new InternalServerErrorException(insertError.message);
+      }
+      row = data;
     }
 
     try {
@@ -98,12 +129,20 @@ export class AiInsightsService {
         .from('ai_health_insights')
         .update({
           status: 'failed',
-          error_code: 'provider_error',
-          error_message: error instanceof Error ? error.message.slice(0, 500) : 'Unknown error',
+          error_code: this.errorCode(error),
+          error_message: 'AI provider không hoàn tất yêu cầu',
         })
         .eq('id', row.id);
       throw error;
     }
+  }
+
+  private processing(insight: AiInsightRecord) {
+    return {
+      id: insight.id,
+      status: 'processing',
+      retryAfterSeconds: 3,
+    };
   }
 
   private async present(user: AuthUser, insight: AiInsightRecord) {
@@ -141,17 +180,16 @@ export class AiInsightsService {
     return data as AiInsightRecord | null;
   }
 
-  private async findCached(profileId: string, inputFingerprint: string) {
+  private async findExisting(profileId: string, inputFingerprint: string) {
     const { data, error } = await this.supabase
       .getAdminClient()
       .from('ai_health_insights')
       .select('*')
       .eq('nutrition_profile_id', profileId)
-      .eq('provider', 'openai')
+      .eq('provider', this.provider.providerName)
       .eq('model', this.provider.modelName)
       .eq('prompt_version', PROMPT_VERSION)
       .eq('input_fingerprint', inputFingerprint)
-      .eq('status', 'completed')
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
     return data as AiInsightRecord | null;
@@ -159,8 +197,16 @@ export class AiInsightsService {
 
   private buildMinimalInput(profile: NutritionProfileRecord) {
     const birthDate = new Date(`${String(profile.birth_date)}T00:00:00.000Z`);
-    const age = new Date().getUTCFullYear() - birthDate.getUTCFullYear();
-    return {
+    const now = new Date();
+    let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+    if (
+      now.getUTCMonth() < birthDate.getUTCMonth() ||
+      (now.getUTCMonth() === birthDate.getUTCMonth() &&
+        now.getUTCDate() < birthDate.getUTCDate())
+    ) {
+      age -= 1;
+    }
+    const parsed = AiHealthInputSchema.safeParse({
       age,
       gender: profile.gender,
       height_cm: Number(profile.height_cm),
@@ -176,7 +222,23 @@ export class AiInsightsService {
       target_carbs_g: Number(profile.target_carbs_g),
       target_fat_g: Number(profile.target_fat_g),
       formula_version: profile.formula_version,
-    };
+    });
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'Dữ liệu hồ sơ nằm ngoài miền phân tích AI an toàn',
+        fields: parsed.error.issues.map((issue) => issue.path.join('.')),
+      });
+    }
+    return parsed.data;
+  }
+
+  private errorCode(error: unknown) {
+    if (error && typeof error === 'object' && 'status' in error) {
+      const status = Number(error.status);
+      if (status === 504) return 'provider_timeout';
+      if (status === 502) return 'invalid_provider_output';
+    }
+    return 'provider_error';
   }
 
   private hash(value: string) {

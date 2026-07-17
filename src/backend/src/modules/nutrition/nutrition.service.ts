@@ -28,6 +28,28 @@ export class NutritionService {
     return data as NutritionProfileRecord;
   }
 
+  async getVersions(user: AuthUser): Promise<NutritionProfileRecord[]> {
+    const { data, error } = await this.supabase
+      .createUserClient(user.accessToken)
+      .from('nutrition_profiles')
+      .select('*')
+      .order('version', { ascending: false });
+    if (error) throw new InternalServerErrorException(error.message);
+    return (data ?? []) as NutritionProfileRecord[];
+  }
+
+  async getVersion(user: AuthUser, version: number): Promise<NutritionProfileRecord> {
+    const { data, error } = await this.supabase
+      .createUserClient(user.accessToken)
+      .from('nutrition_profiles')
+      .select('*')
+      .eq('version', version)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!data) throw new NotFoundException(`Không tìm thấy hồ sơ dinh dưỡng phiên bản ${version}`);
+    return data as NutritionProfileRecord;
+  }
+
   async create(user: AuthUser, dto: CreateNutritionProfileDto) {
     const result = this.calculator.calculate(dto);
     const { data, error } = await this.supabase.createUserClient(user.accessToken).rpc(

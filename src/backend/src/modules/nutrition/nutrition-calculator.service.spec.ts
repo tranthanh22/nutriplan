@@ -48,4 +48,41 @@ describe('NutritionCalculatorService', () => {
       service.calculate({ ...baseInput, birthDate: `${birthYear}-01-01` }),
     ).toThrow(BadRequestException);
   });
+
+  it.each([
+    [Gender.Female, ActivityLevel.Sedentary, NutritionGoal.Maintain, 155, 48],
+    [Gender.Female, ActivityLevel.Light, NutritionGoal.LoseWeight, 160, 55],
+    [Gender.Female, ActivityLevel.Moderate, NutritionGoal.GainMuscle, 165, 60],
+    [Gender.Female, ActivityLevel.Active, NutritionGoal.Maintain, 170, 68],
+    [Gender.Female, ActivityLevel.VeryActive, NutritionGoal.LoseWeight, 175, 75],
+    [Gender.Male, ActivityLevel.Sedentary, NutritionGoal.Maintain, 160, 55],
+    [Gender.Male, ActivityLevel.Light, NutritionGoal.LoseWeight, 165, 62],
+    [Gender.Male, ActivityLevel.Moderate, NutritionGoal.GainMuscle, 170, 70],
+    [Gender.Male, ActivityLevel.Active, NutritionGoal.Maintain, 175, 82],
+    [Gender.Male, ActivityLevel.VeryActive, NutritionGoal.LoseWeight, 180, 90],
+    [Gender.Female, ActivityLevel.Moderate, NutritionGoal.Maintain, 150, 45],
+    [Gender.Female, ActivityLevel.Active, NutritionGoal.GainMuscle, 168, 72],
+    [Gender.Male, ActivityLevel.Light, NutritionGoal.Maintain, 172, 65],
+    [Gender.Male, ActivityLevel.Active, NutritionGoal.GainMuscle, 185, 95],
+    [Gender.Male, ActivityLevel.Sedentary, NutritionGoal.LoseWeight, 178, 110],
+  ])(
+    'keeps calculated metrics in the allowed domain for %s / %s / %s',
+    (gender, activityLevel, goal, heightCm, weightKg) => {
+      const result = service.calculate({
+        ...baseInput,
+        gender,
+        activityLevel,
+        goal,
+        heightCm,
+        weightKg,
+      });
+
+      expect(result.bmrKcal).toBeGreaterThan(500);
+      expect(result.tdeeKcal).toBeGreaterThanOrEqual(result.bmrKcal);
+      expect(result.targetCaloriesKcal).toBeGreaterThanOrEqual(1200);
+      expect(result.targetProteinG).toBeGreaterThan(0);
+      expect(result.targetCarbsG).toBeGreaterThanOrEqual(0);
+      expect(result.targetFatG).toBeGreaterThan(0);
+    },
+  );
 });
