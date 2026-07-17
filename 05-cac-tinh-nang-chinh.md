@@ -22,6 +22,7 @@ Tài liệu chỉ đặc tả các tính năng tạo nên giá trị khác biệ
 | Mã | Tính năng chính | Người dùng chính | Giá trị tạo ra | Core Service nguồn |
 |---|---|---|---|---|
 | KF-01 | Thiết lập hồ sơ và tính nhu cầu dinh dưỡng | Khách hàng | Biết lượng năng lượng và Macro phù hợp thay vì tự ước lượng | CS1 |
+| KF-01A | Phân tích dữ liệu bằng AI | Khách hàng; đầy đủ cho subscriber | Nhận insight dễ hiểu, có căn cứ từ dữ liệu và gợi ý hành động | CS1, CS5 |
 | KF-02 | Chọn hình thức sử dụng thực đơn | Khách hàng | Chọn tự chuẩn bị hoặc đặt bếp đối tác theo nhu cầu và khả năng chi trả | CS2 |
 | KF-02A | Thực đơn NutriPlan dành cho người tự chuẩn bị | Người dùng subscription | Xem chi tiết thực đơn/cách làm và lưu kế hoạch cá nhân | CS2, CS3 |
 | KF-02B | Khám phá và mua món/gói của bếp đối tác | Mọi khách hàng | Mua món phù hợp mà không bị bắt buộc đăng ký NutriPlan | CS2, CS4 |
@@ -49,7 +50,7 @@ Tài liệu chỉ đặc tả các tính năng tạo nên giá trị khác biệ
 4. BMR được nhân với hệ số vận động để tạo TDEE.
 5. Hệ thống áp dụng quy tắc mục tiêu để xác định mức năng lượng hằng ngày.
 6. Mức năng lượng được phân bổ thành Protein, Carbohydrate và Fat theo quy tắc đã được kiểm chứng.
-7. Hệ thống hiển thị kết quả, giải thích ngắn gọn và lưu thành phiên bản hồ sơ dinh dưỡng hiện hành.
+7. Hệ thống lưu kết quả cùng phiên bản công thức để làm dữ liệu nguồn cho thực đơn và AI Insight.
 
 **Quy tắc nghiệp vụ:**
 
@@ -62,6 +63,34 @@ Tài liệu chỉ đặc tả các tính năng tạo nên giá trị khác biệ
 **Ngoại lệ:** dữ liệu không hợp lệ; mục tiêu quá cực đoan; không có quy tắc phù hợp cho bệnh lý khai báo. Hệ thống yêu cầu sửa dữ liệu hoặc tham vấn chuyên gia, không tự sinh kế hoạch thiếu an toàn.
 
 **Kết quả:** một Nutrition Profile gồm BMR, TDEE, mục tiêu Calorie, mục tiêu Macro và các ràng buộc thực phẩm.
+
+### KF-01A — Phân tích dữ liệu bằng AI
+
+**Vấn đề giải quyết:** Các con số BMR, TDEE và Macro khó hiểu nếu chỉ hiển thị riêng lẻ. Người dùng cần biết dữ liệu nói lên điều gì, điểm nào đáng chú ý và bước tiếp theo hợp lý là gì.
+
+**Điều kiện bắt đầu:** người dùng có Nutrition Profile hợp lệ. Backend đã hoàn tất phép tính định lượng trước khi gọi AI.
+
+**Luồng chính:**
+
+1. NestJS tạo một payload tối thiểu từ phiên bản Nutrition Profile hiện hành; không gửi tên, điện thoại, địa chỉ hoặc dữ liệu không cần thiết.
+2. Backend gọi AI với `prompt_version` cố định và yêu cầu đầu ra theo JSON Schema.
+3. AI trả tóm tắt, các quan sát kèm bằng chứng số liệu, gợi ý hành động, câu hỏi còn thiếu, giới hạn và cờ an toàn.
+4. Backend kiểm tra schema và quy tắc an toàn trước khi lưu kết quả.
+5. Người dùng miễn phí xem tóm tắt ngắn; subscriber xem phân tích đầy đủ và được tạo lại khi hồ sơ thay đổi.
+6. Mọi đề xuất ảnh hưởng đến mục tiêu hoặc kế hoạch chỉ được áp dụng sau khi người dùng xác nhận.
+
+**Quy tắc nghiệp vụ:**
+
+- AI giải thích kết quả đã tính; AI không phải nguồn tính BMR/TDEE/Calorie/Macro.
+- Không chẩn đoán bệnh, dự đoán nguy cơ bệnh, kê thuốc, đề xuất điều trị hoặc tự xử lý trường hợp cấp cứu.
+- Không khẳng định độ an toàn đối với bệnh lý hoặc dị ứng chỉ từ kết quả AI; allergen vẫn do rule và dữ liệu món kiểm tra.
+- Nếu thiếu dữ liệu hoặc độ chắc chắn thấp, kết quả phải nói rõ giới hạn và đặt câu hỏi bổ sung thay vì bịa kết luận.
+- Cùng một `nutrition_profile_id + prompt_version + model` chỉ tạo một kết quả hoàn tất; retry không làm phát sinh nhiều lượt tính phí.
+- Lỗi provider hoặc kết quả sai schema không được chặn việc xem số liệu nền, preview hoặc mua hàng.
+
+**Kết quả có cấu trúc:** `summary`, `observations[]`, `actionable_suggestions[]`, `questions_for_user[]`, `limitations[]`, `safety_flags[]`, `recommend_professional_review`.
+
+**Kết quả lưu trữ:** input đã rút gọn, output JSON, model/provider, prompt/formula version, trạng thái xử lý, trạng thái an toàn, token/cost nếu có và thời điểm tạo.
 
 ### KF-02 — Chọn hình thức sử dụng thực đơn
 
@@ -324,7 +353,8 @@ Tài liệu chỉ đặc tả các tính năng tạo nên giá trị khác biệ
 
 ```mermaid
 flowchart TB
-    A[KF-01\nHồ sơ dinh dưỡng] --> B{KF-02\nChọn hình thức}
+    A[KF-01\nHồ sơ dinh dưỡng] --> AI[KF-01A\nAI Health Insights]
+    AI --> B{KF-02\nChọn hình thức}
     B -->|Tự chuẩn bị| C{Có NutriPlan\nSubscription?}
     C -->|Chưa có| S[KF-03\nĐăng ký Subscription]
     S --> M[KF-02A\nChi tiết thực đơn + cách làm]
@@ -351,6 +381,7 @@ KF-03 quản lý quyền lợi số của NutriPlan, còn KF-03B quản lý giao
 | Đối tượng dữ liệu | Nội dung chính | Kiểm soát quan trọng |
 |---|---|---|
 | Nutrition Profile | Chỉ số cơ thể, mục tiêu, TDEE/Macro, dị ứng | Lưu phiên bản; hạn chế truy cập; không log dữ liệu nhạy cảm tùy tiện |
+| AI Health Insight | Input tối thiểu, output có cấu trúc, model/prompt/formula version, trạng thái an toàn | User chỉ đọc kết quả của mình; chỉ backend được tạo; không dùng làm chẩn đoán |
 | Dish/Recipe | Thành phần, allergen, định lượng, Macro, giá | Có nguồn và ngày xác nhận; thay đổi phải được duyệt |
 | Self-prepared Meal Plan | Món theo ngày/bữa, tổng dinh dưỡng, nguyên liệu và cách làm | Kiểm tra lại sau mọi lần đổi món; không sinh đơn bếp |
 | Kitchen Package | Bếp, món/gói, chu kỳ, giá, vùng phục vụ và chính sách | Lưu phiên bản; chỉ hiển thị gói còn năng lực và phù hợp hồ sơ |

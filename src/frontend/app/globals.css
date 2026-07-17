@@ -269,6 +269,14 @@ h1, h2, h3, .brand { font-family: "Manrope", sans-serif; }
 .benefit-list strong, .benefit-list small { display: block; }
 .benefit-list strong { font-size: 13px; }
 .benefit-list small { margin-top: 3px; color: #aebfb9; font-size: 10px; }
+.subscription-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 22px 0 12px; }
+.subscription-option { position: relative; display: grid; gap: 4px; min-width: 0; padding: 14px 8px 11px; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; color: white; text-align: center; background: rgba(255,255,255,.06); cursor: pointer; }
+.subscription-option:hover { border-color: rgba(255,255,255,.42); }
+.subscription-option--active { border-color: var(--cream); color: var(--forest); background: var(--cream); }
+.subscription-option b { font-family: "Manrope"; font-size: 15px; }
+.subscription-option small { color: #aebfb9; font-size: 9px; }
+.subscription-option--active small { color: #587068; }
+.subscription-option__badge { position: absolute; top: -9px; left: 50%; padding: 3px 7px; border-radius: 999px; color: var(--forest); font-size: 8px; font-weight: 800; white-space: nowrap; background: #9de0bd; transform: translateX(-50%); }
 .subscription-price { display: flex; align-items: flex-end; justify-content: space-between; margin: 25px 0 17px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.13); }
 .subscription-price strong { font-family: "Manrope"; font-size: 25px; }
 .subscription-price span, .subscription-price small { color: #b9cbc5; font-size: 10px; }
@@ -363,6 +371,9 @@ h1, h2, h3, .brand { font-family: "Manrope", sans-serif; }
   .form-grid { grid-template-columns: 1fr; }
   .subscription-modal { padding: 27px 22px; }
   .subscription-modal h2 { font-size: 28px; }
+  .subscription-options { grid-template-columns: 1fr; }
+  .subscription-option { grid-template-columns: 1fr auto; align-items: center; text-align: left; }
+  .subscription-option small { grid-column: 1 / -1; }
   .subscription-price { align-items: flex-start; flex-direction: column; gap: 5px; }
   .modal-actions { flex-direction: column-reverse; }
   .modal-actions .button { width: 100%; }

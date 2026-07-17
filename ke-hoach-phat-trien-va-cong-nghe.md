@@ -2,6 +2,8 @@
 
 ## 1. Mục tiêu tài liệu
 
+Kế hoạch thực thi chi tiết dành cho nhóm hai người được trình bày tại [ke-hoach-phat-trien-nhom-2-nguoi.md](ke-hoach-phat-trien-nhom-2-nguoi.md).
+
 Tài liệu này xác định kiến trúc, công nghệ, cấu trúc mã nguồn và lộ trình phát triển NutriPlan dựa trên phạm vi MVP hiện tại. Stack chính được lựa chọn là:
 
 - **Next.js** cho giao diện web.
@@ -195,6 +197,8 @@ nutriplan/
 ```
 
 ## 5. Thiết kế database tối thiểu
+
+Thiết kế chi tiết, ERD, RLS và các luồng transaction được mô tả tại [docs/database-design.md](docs/database-design.md). Migration khởi tạo nằm trong `supabase/migrations/202607160001_initial_schema.sql`.
 
 ### 5.1 Nhóm người dùng và phân quyền
 
