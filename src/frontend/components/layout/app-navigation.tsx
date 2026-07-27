@@ -65,7 +65,11 @@ export function AppNavigation({
           {!subscribed && <button className="button button--dark button--small" onClick={onSubscribe}>Dùng thử miễn phí</button>}
         </div>
         <button className="user-chip" onClick={onOpenProfile}>
-          <span className="avatar">MA</span>
+          <span className="avatar">
+            {profile.name
+              ? profile.name.trim().split(/\s+/).map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+              : "NP"}
+          </span>
           <span><strong>{profile.name}</strong><small>{subscribed ? "Thành viên Plus" : "Tài khoản miễn phí"}</small></span>
           <ChevronDown size={16} />
         </button>

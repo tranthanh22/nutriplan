@@ -15,6 +15,8 @@ import { SubscriptionModal } from "@/features/subscription/subscription-modal";
 import type { KitchenOffer, Meal } from "@/lib/data";
 import { calculateNutrition, defaultProfile, initialJournal, mealToEntry } from "@/lib/nutrition";
 import type { JournalEntry, Profile, View } from "@/types/app";
+import { apiClient } from "@/lib/api-client";
+import { getSession } from "@/features/onboarding/onboarding.service";
 
 export function NutriPlanApp() {
   const [view, setView] = useState<View>("home");
@@ -31,6 +33,7 @@ export function NutriPlanApp() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    // 1. Restore local storage demo state if any
     const saved = window.localStorage.getItem("nutriplan-demo");
     if (saved) {
       try {
@@ -46,6 +49,62 @@ export function NutriPlanApp() {
         window.localStorage.removeItem("nutriplan-demo");
       }
     }
+
+    // 2. Load authenticated user profile from NestJS REST API
+    getSession().then(async (session) => {
+      if (!session) return;
+      const email = session.user.email;
+      const rawName = email ? email.split("@")[0] : "Người dùng";
+      const formattedName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+
+      let fetchedName = formattedName;
+      let gender = defaultProfile.gender;
+      let height = defaultProfile.height;
+      let weight = defaultProfile.weight;
+      let goal = defaultProfile.goal;
+      let activity = defaultProfile.activity;
+
+      try {
+        const userProfile = await apiClient.get<{ full_name?: string }>('/profiles/me', session.access_token);
+        if (userProfile?.full_name) {
+          fetchedName = userProfile.full_name;
+        }
+      } catch {
+        // Fallback to email name
+      }
+
+      try {
+        const nutProfile = await apiClient.get<{
+          gender?: string;
+          height_cm?: number | string;
+          weight_kg?: number | string;
+          goal?: string;
+          activity_level?: string;
+        }>('/nutrition-profiles/current', session.access_token);
+
+        if (nutProfile) {
+          if (nutProfile.gender === 'male' || nutProfile.gender === 'female') gender = nutProfile.gender;
+          if (nutProfile.height_cm) height = Number(nutProfile.height_cm);
+          if (nutProfile.weight_kg) weight = Number(nutProfile.weight_kg);
+          if (nutProfile.goal === 'lose_weight') goal = 'lose';
+          else if (nutProfile.goal === 'gain_muscle') goal = 'gain';
+          else if (nutProfile.goal === 'maintain') goal = 'maintain';
+        }
+      } catch {
+        // Keep default
+      }
+
+      setProfile((prev) => ({
+        ...prev,
+        name: fetchedName,
+        gender,
+        height,
+        weight,
+        goal: goal as Profile['goal'],
+        activity,
+      }));
+    });
+
     setHydrated(true);
   }, []);
 
