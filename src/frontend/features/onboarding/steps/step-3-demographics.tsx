@@ -43,7 +43,7 @@ export function Step3Demographics({ data, onChange, onBack, onNext }: Step3Demog
 
   return (
     <div className="ob-full-page">
-      <SplitLayout imageSrc="/assets/about_you.jpg" imageAlt="Hình minh họa thông tin cá nhân">
+      <SplitLayout imageSrc="/assets/about_you.png" imageAlt="Hình minh họa thông tin cá nhân">
         <div className="ob-form-content">
           <ProgressBar currentStep={1} totalSteps={5} />
 

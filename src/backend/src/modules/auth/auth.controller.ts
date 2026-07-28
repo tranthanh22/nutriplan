@@ -4,12 +4,19 @@ import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
-import { SignUpDto, VerifyOtpDto } from './dto/auth.dto';
+import { SignUpDto, VerifyOtpDto, LoginDto } from './dto/auth.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post('login')
+  @ApiOperation({ summary: 'Đăng nhập tài khoản bằng email & password' })
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
 
   @Public()
   @Post('signup')

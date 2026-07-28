@@ -1,6 +1,6 @@
-"use client";
-
+import { useEffect, useState } from "react";
 import type { OnboardingData } from "@/types/onboarding";
+import { fetchDietTypes } from "../onboarding.service";
 import { NavButtons } from "../components/nav-buttons";
 import { ProgressBar } from "../components/progress-bar";
 import { SplitLayout } from "../components/split-layout";
@@ -12,21 +12,42 @@ interface Step5DietTypeProps {
   onNext: () => void;
 }
 
-const DIET_OPTIONS: {
+interface DietOptionItem {
   value: string;
-  emoji: string;
   title: string;
   desc: string;
-}[] = [
-  { value: "standard", emoji: "🍽️", title: "Tiêu chuẩn", desc: "Không có hạn chế đặc biệt" },
-  { value: "vegetarian", emoji: "🥦", title: "Ăn chay thanh đạm", desc: "Không ăn thịt, có thể ăn trứng & sữa" },
-  { value: "vegan", emoji: "🌱", title: "Ăn chay thuần (Vegan)", desc: "Không dùng sản phẩm từ động vật" },
-  { value: "keto", emoji: "🥑", title: "Keto / Low-Carb", desc: "Ít tinh bột, giàu chất béo tốt" },
-  { value: "paleo", emoji: "🍖", title: "Paleo", desc: "Thực phẩm tự nhiên, không chế biến sẵn" },
-  { value: "gluten_free", emoji: "🌾", title: "Không Gluten", desc: "Né tránh lúa mì & ngũ cốc có gluten" },
+}
+
+const DEFAULT_DIET_OPTIONS: DietOptionItem[] = [
+  { value: "standard", title: "Tiêu chuẩn", desc: "Không có hạn chế đặc biệt" },
+  { value: "vegetarian", title: "Ăn chay thanh đạm", desc: "Không ăn thịt, có thể ăn trứng & sữa" },
+  { value: "vegan", title: "Ăn chay thuần (Vegan)", desc: "Không dùng sản phẩm từ động vật" },
+  { value: "keto", title: "Keto / Low-Carb", desc: "Ít tinh bột, giàu chất béo tốt" },
+  { value: "paleo", title: "Paleo", desc: "Thực phẩm tự nhiên, không chế biến sẵn" },
+  { value: "gluten_free", title: "Không Gluten", desc: "Né tránh lúa mì & ngũ cốc có gluten" },
 ];
 
 export function Step5DietType({ data, onChange, onBack, onNext }: Step5DietTypeProps) {
+  const [options, setOptions] = useState<DietOptionItem[]>(DEFAULT_DIET_OPTIONS);
+
+  useEffect(() => {
+    fetchDietTypes()
+      .then((items) => {
+        if (Array.isArray(items) && items.length > 0) {
+          setOptions(
+            items.map((i) => ({
+              value: i.code,
+              title: i.name,
+              desc: i.description || "",
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        // Fallback to default options
+      });
+  }, []);
+
   const toggle = (value: string) => {
     const current = data.dietaryPreferences;
     const next = current.includes(value)
@@ -37,7 +58,7 @@ export function Step5DietType({ data, onChange, onBack, onNext }: Step5DietTypeP
 
   return (
     <div className="ob-full-page">
-      <SplitLayout imageSrc="/assets/diet_type.jpg" imageAlt="Chế độ ăn ưa thích">
+      <SplitLayout imageSrc="/assets/diet_type.png" imageAlt="Chế độ ăn ưa thích">
         <div className="ob-form-content">
           <ProgressBar currentStep={3} totalSteps={5} />
 
@@ -47,7 +68,7 @@ export function Step5DietType({ data, onChange, onBack, onNext }: Step5DietTypeP
           </p>
 
           <div className="ob-chip-grid">
-            {DIET_OPTIONS.map((opt) => {
+            {options.map((opt) => {
               const selected = data.dietaryPreferences.includes(opt.value);
               return (
                 <button
@@ -57,7 +78,6 @@ export function Step5DietType({ data, onChange, onBack, onNext }: Step5DietTypeP
                   className={`ob-chip-card${selected ? " ob-chip-card--selected" : ""}`}
                   onClick={() => toggle(opt.value)}
                 >
-                  <span className="ob-chip-card__emoji">{opt.emoji}</span>
                   <strong className="ob-chip-card__title">{opt.title}</strong>
                   <small className="ob-chip-card__desc">{opt.desc}</small>
                 </button>

@@ -29,10 +29,33 @@ export interface AuthMeResponse {
 // ─── Auth REST endpoints ──────────────────────────────────────────────────────
 
 export async function signUp(email: string, password: string) {
-  return apiClient.post<{ message: string }>('/auth/signup', {
+  const response = await apiClient.post<Partial<VerifyOtpResponse>>('/auth/signup', {
     email,
     password,
   });
+
+  if (response.accessToken) {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TOKEN_KEY, response.accessToken);
+    }
+  }
+
+  return response;
+}
+
+export async function login(email: string, password: string) {
+  const response = await apiClient.post<VerifyOtpResponse>(
+    '/auth/login',
+    { email, password },
+  );
+
+  if (response.accessToken) {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TOKEN_KEY, response.accessToken);
+    }
+  }
+
+  return response;
 }
 
 export async function verifyOtp(email: string, token: string) {
@@ -50,9 +73,10 @@ export async function verifyOtp(email: string, token: string) {
   return response;
 }
 
-export async function getSession(): Promise<{ access_token: string; user: AuthMeResponse } | null> {
+export async function getSession(): Promise<{ access_token: string; user: AuthMeResponse; isFromHash?: boolean } | null> {
   if (typeof window === 'undefined') return null;
 
+  let isFromHash = false;
   // Detect access token in URL hash/query when user clicks email confirmation link
   if (window.location.hash && window.location.hash.includes('access_token=')) {
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
@@ -60,6 +84,7 @@ export async function getSession(): Promise<{ access_token: string; user: AuthMe
     if (accessToken) {
       window.localStorage.setItem(TOKEN_KEY, accessToken);
       window.history.replaceState(null, '', window.location.pathname);
+      isFromHash = true;
     }
   }
 
@@ -68,7 +93,7 @@ export async function getSession(): Promise<{ access_token: string; user: AuthMe
 
   try {
     const user = await apiClient.get<AuthMeResponse>('/auth/me', token);
-    return { access_token: token, user };
+    return { access_token: token, user, isFromHash };
   } catch {
     window.localStorage.removeItem(TOKEN_KEY);
     return null;
@@ -88,6 +113,14 @@ export function signOut() {
  */
 export async function fetchAllergens(): Promise<AllergenOption[]> {
   return apiClient.get<AllergenOption[]>('/dishes/allergens');
+}
+
+export async function fetchDietTypes(): Promise<{ id: string; code: string; name: string; emoji?: string; description?: string }[]> {
+  return apiClient.get('/dishes/diet-types');
+}
+
+export async function fetchIngredients(): Promise<{ id: string; name: string; normalized_name: string; default_unit?: string }[]> {
+  return apiClient.get('/dishes/ingredients');
 }
 
 // ─── Nutrition Profile REST endpoint ──────────────────────────────────────────

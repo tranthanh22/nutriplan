@@ -76,4 +76,11 @@ export const apiClient = {
       { method: 'PUT', body: JSON.stringify(body) },
       token,
     ),
+
+  patch: <T>(endpoint: string, body: unknown, token?: string) =>
+    request<T>(
+      endpoint,
+      { method: 'PATCH', body: JSON.stringify(body) },
+      token,
+    ),
 };

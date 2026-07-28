@@ -30,11 +30,12 @@ const EMPTY_DATA: OnboardingData = {
 
 interface OnboardingShellProps {
   initialAccessToken?: string | null;
+  initialStep?: Step;
   onComplete: () => void;
 }
 
-export function OnboardingShell({ initialAccessToken, onComplete }: OnboardingShellProps) {
-  const [step, setStep] = useState<Step>(initialAccessToken ? 3 : 1);
+export function OnboardingShell({ initialAccessToken, initialStep, onComplete }: OnboardingShellProps) {
+  const [step, setStep] = useState<Step>(initialStep ?? (initialAccessToken ? 3 : 1));
   const [data, setData] = useState<OnboardingData>(EMPTY_DATA);
   const [accessToken, setAccessToken] = useState<string | null>(initialAccessToken ?? null);
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,11 @@ export function OnboardingShell({ initialAccessToken, onComplete }: OnboardingSh
   const handleSignUp = async (email: string, password: string) => {
     await OnboardingService.signUp(email, password);
     patch({ email, password });
+  };
+
+  const handleLogin = async (email: string, password: string) => {
+    await OnboardingService.login(email, password);
+    onComplete();
   };
 
   // ── Step 7 – final save ───────────────────────────────────
@@ -113,9 +119,10 @@ export function OnboardingShell({ initialAccessToken, onComplete }: OnboardingSh
       {step === 1 && (
         <Step1Auth
           onSignUp={handleSignUp}
+          onLogin={handleLogin}
           onSuccess={(email) => {
             patch({ email });
-            setStep(2);
+            setStep(2); // Show "email sent" screen – user must confirm before onboarding
           }}
         />
       )}
@@ -131,7 +138,7 @@ export function OnboardingShell({ initialAccessToken, onComplete }: OnboardingSh
         <Step3Demographics
           data={data}
           onChange={patch}
-          onBack={() => setStep(1)}
+          onBack={undefined as unknown as () => void} // No back button on first profile setup step
           onNext={() => setStep(4)}
         />
       )}

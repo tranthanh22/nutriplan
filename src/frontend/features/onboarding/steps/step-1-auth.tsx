@@ -6,9 +6,11 @@ import { Eye, EyeOff, Leaf, Mail, Lock } from "lucide-react";
 interface Step1AuthProps {
   onSuccess: (email: string) => void;
   onSignUp: (email: string, password: string) => Promise<void>;
+  onLogin: (email: string, password: string) => Promise<void>;
 }
 
-export function Step1Auth({ onSuccess, onSignUp }: Step1AuthProps) {
+export function Step1Auth({ onSuccess, onSignUp, onLogin }: Step1AuthProps) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -21,10 +23,23 @@ export function Step1Auth({ onSuccess, onSignUp }: Step1AuthProps) {
     setError("");
     setLoading(true);
     try {
-      await onSignUp(email.trim(), password);
-      onSuccess(email.trim());
+      if (mode === "login") {
+        await onLogin(email.trim(), password);
+      } else {
+        await onSignUp(email.trim(), password);
+        onSuccess(email.trim());
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.");
+      const msg = err instanceof Error ? err.message : "";
+      if (
+        msg.includes("User already registered") ||
+        msg.includes("already exists") ||
+        msg.includes("Email trùng")
+      ) {
+        setError("Email trùng với tài khoản đã đăng ký");
+      } else {
+        setError(msg || "Đã có lỗi xảy ra. Vui lòng thử lại.");
+      }
     } finally {
       setLoading(false);
     }
@@ -41,9 +56,13 @@ export function Step1Auth({ onSuccess, onSignUp }: Step1AuthProps) {
       </div>
 
       <div className="ob-auth-card">
-        <h1 className="ob-auth-card__title">Tạo tài khoản NutriPlan</h1>
+        <h1 className="ob-auth-card__title">
+          {mode === "login" ? "Đăng nhập NutriPlan" : "Tạo tài khoản NutriPlan"}
+        </h1>
         <p className="ob-auth-card__sub">
-          Bắt đầu hành trình dinh dưỡng cá nhân hoá dành riêng cho bạn.
+          {mode === "login"
+            ? "Chào mừng trở lại! Vui lòng nhập thông tin để truy cập."
+            : "Bắt đầu hành trình dinh dưỡng cá nhân hoá dành riêng cho bạn."}
         </p>
 
         <form className="ob-auth-form" onSubmit={handleSubmit} noValidate>
@@ -76,10 +95,10 @@ export function Step1Auth({ onSuccess, onSignUp }: Step1AuthProps) {
                 id="ob-password"
                 type={showPw ? "text" : "password"}
                 className="ob-input ob-input--icon ob-input--pw"
-                placeholder="Ít nhất 8 ký tự"
+                placeholder={mode === "login" ? "Nhập mật khẩu" : "Ít nhất 8 ký tự"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
                 minLength={8}
                 required
               />
@@ -101,20 +120,48 @@ export function Step1Auth({ onSuccess, onSignUp }: Step1AuthProps) {
             className="ob-btn-primary"
             disabled={loading || !email || password.length < 8}
           >
-            {loading ? "Đang tạo tài khoản…" : "Tạo tài khoản →"}
+            {loading
+              ? mode === "login"
+                ? "Đang đăng nhập…"
+                : "Đang tạo tài khoản…"
+              : mode === "login"
+              ? "Đăng nhập →"
+              : "Tạo tài khoản →"}
           </button>
         </form>
 
         <p className="ob-auth-footer">
-          Bằng việc đăng ký, bạn đồng ý với{" "}
-          <a href="#" className="ob-link">
-            Điều khoản dịch vụ
-          </a>{" "}
-          và{" "}
-          <a href="#" className="ob-link">
-            Chính sách bảo mật
-          </a>
-          .
+          {mode === "login" ? (
+            <>
+              Chưa có tài khoản?{" "}
+              <button
+                type="button"
+                className="ob-link"
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}
+                onClick={() => {
+                  setMode("signup");
+                  setError("");
+                }}
+              >
+                Đăng ký
+              </button>
+            </>
+          ) : (
+            <>
+              Có tài khoản rồi?{" "}
+              <button
+                type="button"
+                className="ob-link"
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}
+                onClick={() => {
+                  setMode("login");
+                  setError("");
+                }}
+              >
+                Đăng nhập
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>

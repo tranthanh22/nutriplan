@@ -16,37 +16,32 @@ const STEP_LABELS = [
 export function ProgressBar({ currentStep, totalSteps }: ProgressBarProps) {
   return (
     <div className="ob-progress">
-      <div className="ob-progress__dots">
+      <p className="ob-progress__label">
+        {STEP_LABELS[currentStep - 1]}
+      </p>
+      
+      <div className="ob-stepper">
         {Array.from({ length: totalSteps }, (_, i) => {
+          const stepNum = i + 1;
           const status =
-            i + 1 < currentStep ? "done" : i + 1 === currentStep ? "active" : "idle";
+            stepNum < currentStep ? "done" : stepNum === currentStep ? "active" : "idle";
+          const formattedNum = stepNum < 10 ? `0${stepNum}` : `${stepNum}`;
+          
           return (
-            <div key={i} className={`ob-step-dot ob-step-dot--${status}`}>
-              {status === "done" ? (
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path
-                    d="M2 5l2 2 4-4"
-                    stroke="white"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : (
-                <span>{i + 1}</span>
+            <div key={i} className="ob-stepper__item">
+              {i > 0 && (
+                <div
+                  className={`ob-stepper__line ${
+                    stepNum <= currentStep ? "ob-stepper__line--filled" : ""
+                  }`}
+                />
               )}
+              <div className={`ob-stepper__circle ob-stepper__circle--${status}`}>
+                <span>{formattedNum}</span>
+              </div>
             </div>
           );
         })}
-      </div>
-      <p className="ob-progress__label">
-        {STEP_LABELS[currentStep - 1]} &mdash; Bước {currentStep} / {totalSteps}
-      </p>
-      <div className="ob-progress__track">
-        <div
-          className="ob-progress__fill"
-          style={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
-        />
       </div>
     </div>
   );

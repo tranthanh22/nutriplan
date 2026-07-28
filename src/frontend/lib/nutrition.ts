@@ -9,7 +9,9 @@ export const defaultProfile: Profile = {
   weight: 58,
   activity: 1.55,
   goal: "lose",
-  allergies: "Không có"
+  allergies: "Không có",
+  dietaryPreferences: ["standard"],
+  likedFoods: ["Ức gà", "Bông cải xanh", "Bơ quả"],
 };
 
 export const initialJournal: JournalEntry[] = [

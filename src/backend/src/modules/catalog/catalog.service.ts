@@ -34,6 +34,28 @@ export class CatalogService {
     return data;
   }
 
+  async dietTypes() {
+    const { data, error } = await this.supabase
+      .getPublicClient()
+      .from('diet_types')
+      .select('id, code, name, emoji, description')
+      .eq('is_active', true)
+      .order('code');
+    if (error) throw new InternalServerErrorException(error.message);
+    return data;
+  }
+
+  async ingredients() {
+    const { data, error } = await this.supabase
+      .getPublicClient()
+      .from('ingredients')
+      .select('id, name, normalized_name, default_unit')
+      .eq('is_active', true)
+      .order('name');
+    if (error) throw new InternalServerErrorException(error.message);
+    return data;
+  }
+
   async detail(dishId: string) {
     const { data, error } = await this.supabase
       .getPublicClient()

@@ -9,6 +9,8 @@ export type Profile = {
   activity: number;
   goal: "lose" | "maintain" | "gain";
   allergies: string;
+  dietaryPreferences: string[];
+  likedFoods: string[];
 };
 
 export type JournalEntry = {

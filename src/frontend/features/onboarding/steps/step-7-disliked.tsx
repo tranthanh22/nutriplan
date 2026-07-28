@@ -48,7 +48,7 @@ export function Step7Disliked({
 
   return (
     <div className="ob-full-page">
-      <SplitLayout imageSrc="/assets/allergen.jpg" imageAlt="Thực phẩm né tránh & dị ứng">
+      <SplitLayout imageSrc="/assets/allergen.png" imageAlt="Thực phẩm né tránh & dị ứng">
         <div className="ob-form-content">
           <ProgressBar currentStep={5} totalSteps={5} />
 

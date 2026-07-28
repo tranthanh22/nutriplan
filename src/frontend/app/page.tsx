@@ -13,11 +13,23 @@ export default function Home() {
 
   useEffect(() => {
     getSession()
-      .then((session) => {
+      .then(async (session) => {
         if (session) {
           setAccessToken(session.access_token);
-          // If user just confirmed email link via hash, start onboarding steps
-          setAuthState("needs_onboarding");
+          
+          // Check if user has completed nutrition profile onboarding
+          try {
+            const { apiClient } = await import("@/lib/api-client");
+            const profile = await apiClient.get<{ id: string }>('/nutrition-profiles/current', session.access_token);
+            if (profile && profile.id) {
+              setAuthState("authenticated");
+            } else {
+              setAuthState("needs_onboarding");
+            }
+          } catch {
+            // No profile found yet -> Needs onboarding step 3+
+            setAuthState("needs_onboarding");
+          }
         } else {
           setAuthState("unauthenticated");
         }

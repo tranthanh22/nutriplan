@@ -18,30 +18,30 @@ const GOAL_OPTIONS: {
   title: string;
   desc: string;
 }[] = [
-  {
-    value: "lose_weight",
-    emoji: "🔥",
-    title: "Giảm cân & Giảm mỡ",
-    desc: "Giảm mỡ thừa an toàn với lượng thâm hụt calo chuẩn khoa học",
-  },
-  {
-    value: "maintain",
-    emoji: "⚖️",
-    title: "Duy trì vóc dáng",
-    desc: "Giữ cân nặng ổn định và nâng cao sức khỏe toàn diện",
-  },
-  {
-    value: "gain_muscle",
-    emoji: "💪",
-    title: "Tăng cơ & Tăng cân",
-    desc: "Phát triển khối lượng cơ bắp với thặng dư calo lành mạnh",
-  },
-];
+    {
+      value: "lose_weight",
+      emoji: "🔥",
+      title: "Giảm cân & Giảm mỡ",
+      desc: "Giảm mỡ thừa an toàn với lượng thâm hụt calo chuẩn khoa học",
+    },
+    {
+      value: "maintain",
+      emoji: "⚖️",
+      title: "Duy trì vóc dáng",
+      desc: "Giữ cân nặng ổn định và nâng cao sức khỏe toàn diện",
+    },
+    {
+      value: "gain_muscle",
+      emoji: "💪",
+      title: "Tăng cơ & Tăng cân",
+      desc: "Phát triển khối lượng cơ bắp với thặng dư calo lành mạnh",
+    },
+  ];
 
 export function Step4Goals({ data, onChange, onBack, onNext }: Step4GoalsProps) {
   return (
     <div className="ob-full-page">
-      <SplitLayout imageSrc="/assets/goals.jpg" imageAlt="Mục tiêu dinh dưỡng">
+      <SplitLayout imageSrc="/assets/goals.png" imageAlt="Mục tiêu dinh dưỡng">
         <div className="ob-form-content">
           <ProgressBar currentStep={2} totalSteps={5} />
 
@@ -56,9 +56,8 @@ export function Step4Goals({ data, onChange, onBack, onNext }: Step4GoalsProps) 
                 key={opt.value}
                 type="button"
                 id={`ob-goal-${opt.value}`}
-                className={`ob-choice-card ob-choice-card--wide${
-                  data.goal === opt.value ? " ob-choice-card--selected" : ""
-                }`}
+                className={`ob-choice-card ob-choice-card--wide${data.goal === opt.value ? " ob-choice-card--selected" : ""
+                  }`}
                 onClick={() => onChange({ goal: opt.value })}
               >
                 <span className="ob-choice-card__emoji">{opt.emoji}</span>

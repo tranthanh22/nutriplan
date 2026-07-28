@@ -25,6 +25,20 @@ export class CatalogController {
   }
 
   @Public()
+  @Get('diet-types')
+  @ApiOperation({ summary: 'Danh mục chế độ ăn ưa thích' })
+  dietTypes() {
+    return this.catalog.dietTypes();
+  }
+
+  @Public()
+  @Get('ingredients')
+  @ApiOperation({ summary: 'Danh mục nguyên liệu & thực phẩm ưa thích' })
+  ingredients() {
+    return this.catalog.ingredients();
+  }
+
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Chi tiết dinh dưỡng và dị ứng của món; không trả công thức' })
   detail(@Param('id', ParseUUIDPipe) dishId: string) {
