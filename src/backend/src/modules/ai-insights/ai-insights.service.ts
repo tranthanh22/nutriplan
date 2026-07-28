@@ -17,7 +17,7 @@ import {
   type HealthInsightProvider,
 } from './health-insight-provider.interface';
 
-const PROMPT_VERSION = 'health-insight-v1';
+const PROMPT_VERSION = 'health-insight-v2-gemini';
 
 interface AiInsightRecord {
   id: string;

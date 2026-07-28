@@ -6,6 +6,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { validateEnvironment } from './config/env.validation';
 import { SupabaseModule } from './database/supabase.module';
 import { AiInsightsModule } from './modules/ai-insights/ai-insights.module';
+import { AssistantModule } from './modules/assistant/assistant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { HealthModule } from './modules/health/health.module';
@@ -15,6 +16,7 @@ import { NutritionModule } from './modules/nutrition/nutrition.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
+import { SettingsModule } from './modules/settings/settings.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
@@ -26,6 +28,8 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     ProfilesModule,
     NutritionModule,
     AiInsightsModule,
+    AssistantModule,
+    SettingsModule,
     SubscriptionsModule,
     CatalogModule,
     MealPlansModule,

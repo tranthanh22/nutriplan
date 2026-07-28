@@ -11,6 +11,8 @@ export type Meal = {
   ingredients: string[];
   instructions: string[];
   tags: string[];
+  mealPlanItemId?: string;
+  consumptionStatus?: "planned" | "eaten";
 };
 
 export type DayPlan = {

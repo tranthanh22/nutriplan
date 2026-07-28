@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, NotImplementedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotImplementedException,
+} from '@nestjs/common';
 import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { SupabaseService } from '../../database/supabase.service';
 import type { CreateKitchenOrderDto } from './dto/create-kitchen-order.dto';
@@ -18,10 +23,29 @@ export class OrdersService {
     return data;
   }
 
-  create(_user: AuthUser, _dto: CreateKitchenOrderDto) {
-    throw new NotImplementedException(
-      'Khung API đã sẵn sàng; cần RPC transaction để khóa giá offer và tạo payment an toàn',
-    );
+  async create(user: AuthUser, dto: CreateKitchenOrderDto) {
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .rpc('create_mock_kitchen_order_schedule', {
+        p_user_id: user.id,
+        p_offer_code: dto.offerCode,
+        p_recipient_name: dto.recipientName,
+        p_recipient_phone: dto.recipientPhone,
+        p_delivery_address: dto.deliveryAddress,
+        p_delivery_note: dto.deliveryNote ?? null,
+        p_idempotency_key: dto.idempotencyKey,
+        p_quantity: dto.quantity,
+      });
+    if (error) {
+      if (error.message.includes('kitchen_offer_not_available')) {
+        throw new BadRequestException('Gói bếp không còn khả dụng');
+      }
+      if (error.message.includes('invalid_kitchen_order_input')) {
+        throw new BadRequestException('Thông tin nhận món chưa hợp lệ');
+      }
+      throw new InternalServerErrorException(error.message);
+    }
+    return data;
   }
 
   updateStatus(_user: AuthUser, _orderId: string, _dto: UpdateOrderStatusDto) {

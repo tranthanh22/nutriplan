@@ -35,6 +35,7 @@ interface CheckoutRecord {
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
   private stripeClient?: Stripe;
+  private portalConfigurationId?: string;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -192,6 +193,7 @@ export class SubscriptionsService {
 
     const attempt =
       this.readMetadataNumber(checkout.payment_metadata, 'stripe_attempt') + 1;
+    const customerId = await this.getOrCreateStripeCustomer(user);
     let session: Stripe.Checkout.Session;
     try {
       session = await stripe.checkout.sessions.create(
@@ -199,7 +201,10 @@ export class SubscriptionsService {
           mode: 'payment',
           payment_method_types: ['card'],
           client_reference_id: user.id,
-          customer_email: user.email,
+          customer: customerId,
+          payment_intent_data: {
+            setup_future_usage: 'off_session',
+          },
           line_items: [
             {
               quantity: 1,
@@ -265,6 +270,41 @@ export class SubscriptionsService {
       expiresAt: new Date(session.expires_at * 1000).toISOString(),
       testMode: this.isTestMode(),
     };
+  }
+
+  async createBillingPortal(user: AuthUser) {
+    const stripe = this.getStripe();
+    const frontendUrl = this.config
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/$/, '');
+
+    try {
+      const [customerId, configurationId] = await Promise.all([
+        this.getOrCreateStripeCustomer(user),
+        this.getOrCreatePortalConfiguration(stripe, frontendUrl),
+      ]);
+      const session = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        configuration: configurationId,
+        return_url: `${frontendUrl}/?settings=billing`,
+      });
+      return {
+        url: session.url,
+        testMode: this.isTestMode(),
+      };
+    } catch (error) {
+      if (
+        error instanceof ServiceUnavailableException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw new BadGatewayException(
+        error instanceof Error
+          ? error.message
+          : 'Không thể mở trang quản lý thanh toán Stripe',
+      );
+    }
   }
 
   async checkoutStatus(user: AuthUser, sessionId: string) {
@@ -395,6 +435,96 @@ export class SubscriptionsService {
       timeout: 20_000,
     });
     return this.stripeClient;
+  }
+
+  private async getOrCreateStripeCustomer(user: AuthUser) {
+    const admin = this.supabase.getAdminClient();
+    const { data: stored, error: storedError } = await admin
+      .from('billing_customers')
+      .select('provider_customer_id')
+      .eq('user_id', user.id)
+      .eq('provider', 'stripe')
+      .maybeSingle();
+    if (storedError) {
+      throw new InternalServerErrorException(storedError.message);
+    }
+
+    const stripe = this.getStripe();
+    const storedCustomerId =
+      typeof stored?.provider_customer_id === 'string'
+        ? stored.provider_customer_id
+        : null;
+    if (storedCustomerId) {
+      try {
+        const customer = await stripe.customers.retrieve(storedCustomerId);
+        if (!customer.deleted) return customer.id;
+      } catch {
+        // Customer đã bị xóa trong Stripe: tạo lại và cập nhật ánh xạ.
+      }
+    }
+
+    const customer = await stripe.customers.create(
+      {
+        ...(user.email ? { email: user.email } : {}),
+        metadata: { userId: user.id },
+      },
+      { idempotencyKey: `nutriplan-customer:${user.id}` },
+    );
+    const { error: saveError } = await admin.from('billing_customers').upsert(
+      {
+        user_id: user.id,
+        provider: 'stripe',
+        provider_customer_id: customer.id,
+      },
+      { onConflict: 'user_id' },
+    );
+    if (saveError) throw new InternalServerErrorException(saveError.message);
+    return customer.id;
+  }
+
+  private async getOrCreatePortalConfiguration(
+    stripe: Stripe,
+    frontendUrl: string,
+  ) {
+    const configured = this.config
+      .get<string>('STRIPE_PORTAL_CONFIGURATION_ID')
+      ?.trim();
+    if (configured) return configured;
+    if (this.portalConfigurationId) return this.portalConfigurationId;
+
+    const marker = 'nutriplan-settings-v1';
+    const existing = await stripe.billingPortal.configurations.list({
+      active: true,
+      limit: 100,
+    });
+    const matched = existing.data.find(
+      (configuration) => configuration.metadata?.nutriplan === marker,
+    );
+    if (matched) {
+      this.portalConfigurationId = matched.id;
+      return matched.id;
+    }
+
+    const created = await stripe.billingPortal.configurations.create(
+      {
+        name: 'NutriPlan payment settings',
+        default_return_url: `${frontendUrl}/?settings=billing`,
+        metadata: { nutriplan: marker },
+        features: {
+          customer_update: {
+            enabled: true,
+            allowed_updates: ['name', 'email', 'address'],
+          },
+          invoice_history: { enabled: true },
+          payment_method_update: { enabled: true },
+          subscription_cancel: { enabled: false },
+          subscription_update: { enabled: false },
+        },
+      },
+      { idempotencyKey: marker },
+    );
+    this.portalConfigurationId = created.id;
+    return created.id;
   }
 
   private async fulfillCheckoutSession(

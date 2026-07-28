@@ -1,5 +1,6 @@
 import Image from "next/image";
-import { Check, LockKeyhole, X } from "lucide-react";
+import { AlertCircle, Check, LoaderCircle, LockKeyhole, X } from "lucide-react";
+import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Metric } from "@/components/ui/nutrition-widgets";
 import type { Meal } from "@/lib/data";
@@ -15,8 +16,27 @@ export function MealModal({
   subscribed: boolean;
   onClose: () => void;
   onSubscribe: () => void;
-  onAdd: () => void;
+  onAdd: () => void | Promise<void>;
 }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const eaten = meal.consumptionStatus === "eaten";
+
+  async function addMeal() {
+    setSaving(true);
+    setError("");
+    try {
+      await onAdd();
+    } catch (addError) {
+      setError(
+        addError instanceof Error
+          ? addError.message
+          : "Không thể ghi nhận bữa ăn."
+      );
+      setSaving(false);
+    }
+  }
+
   return (
     <Modal onClose={onClose} wide>
       <div className="meal-modal">
@@ -56,11 +76,32 @@ export function MealModal({
           )}
           <div className="modal-actions">
             <button className="button button--outline" onClick={onClose}>Đóng</button>
-            {subscribed && <button className="button button--dark" onClick={onAdd}><Check size={17} /> Ghi đã ăn</button>}
+            {subscribed && eaten ? (
+              <span className="eaten-tag">
+                <Check size={15} /> Bữa ăn đã được ghi nhận
+              </span>
+            ) : subscribed ? (
+              <button
+                className="button button--dark"
+                disabled={saving}
+                onClick={() => void addMeal()}
+              >
+                {saving ? (
+                  <LoaderCircle className="spin" size={17} />
+                ) : (
+                  <Check size={17} />
+                )}
+                {saving ? "Đang ghi…" : "Ghi đã ăn"}
+              </button>
+            ) : null}
           </div>
+          {error ? (
+            <div className="login-error">
+              <AlertCircle size={17} /><span>{error}</span>
+            </div>
+          ) : null}
         </div>
       </div>
     </Modal>
   );
 }
-

@@ -9,13 +9,17 @@ const schema = Joi.object({
   SUPABASE_SECRET_KEY: Joi.string().allow('').optional(),
   OPENAI_API_KEY: Joi.string().allow('').optional(),
   OPENAI_MODEL: Joi.string().default('gpt-5.6-luna'),
-  AI_PROVIDER: Joi.string().valid('openai', 'mock').default('mock'),
+  AI_PROVIDER: Joi.string().valid('gemini', 'mock').default('gemini'),
   OPENAI_TIMEOUT_MS: Joi.number().integer().min(1000).max(120000).default(20000),
   OPENAI_MAX_RETRIES: Joi.number().integer().min(0).max(5).default(2),
+  GEMINI_API_KEY: Joi.string().allow('').optional(),
+  GEMINI_MODEL: Joi.string().default('gemini-3.1-flash-lite'),
+  GEMINI_TIMEOUT_MS: Joi.number().integer().min(1000).max(120000).default(30000),
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3000'),
   STRIPE_TEST_MODE: Joi.boolean().truthy('true').falsy('false').default(true),
   STRIPE_SECRET_KEY: Joi.string().allow('').optional(),
   STRIPE_WEBHOOK_SECRET: Joi.string().allow('').optional(),
+  STRIPE_PORTAL_CONFIGURATION_ID: Joi.string().allow('').optional(),
 });
 
 export function validateEnvironment(config: Record<string, unknown>) {
@@ -33,8 +37,8 @@ export function validateEnvironment(config: Record<string, unknown>) {
     throw new Error('SUPABASE_SECRET_KEY is required in production');
   }
 
-  if (value.NODE_ENV === 'production' && value.AI_PROVIDER === 'openai' && !value.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY is required when AI_PROVIDER=openai in production');
+  if (value.NODE_ENV === 'production' && value.AI_PROVIDER === 'gemini' && !value.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is required when AI_PROVIDER=gemini in production');
   }
 
   if (value.NODE_ENV === 'production' && (!value.STRIPE_SECRET_KEY || !value.STRIPE_WEBHOOK_SECRET)) {

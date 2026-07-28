@@ -9,7 +9,6 @@ import {
   Lightbulb,
   LoaderCircle,
   LogIn,
-  LogOut,
   RefreshCw,
   ShieldAlert,
   ShieldCheck
@@ -91,17 +90,6 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
     }
   }, [loadLatest]);
 
-  async function signOut() {
-    try {
-      await createClient().auth.signOut();
-      setUser(null);
-      setInsight(null);
-      setNotice("");
-    } catch {
-      setError("Không thể đăng xuất. Hãy thử lại.");
-    }
-  }
-
   async function createInsight() {
     setLoading(true);
     setError("");
@@ -125,7 +113,6 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
           <h2 id="ai-insight-title">Phân tích sức khỏe của bạn</h2>
           <p>Diễn giải các chỉ số dinh dưỡng từ hồ sơ hiện hành; không thay thế chẩn đoán y khoa.</p>
         </div>
-        {user && <button className="button button--outline button--small" onClick={() => void signOut()}><LogOut size={16} /> Đăng xuất</button>}
       </div>
 
       {!authLoading && !user && (
@@ -141,8 +128,7 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
       {notice && <div className="insight-alert"><ShieldCheck size={19} /><div><strong>Trạng thái</strong><span>{notice}</span></div></div>}
 
       {user && (
-        <div className="insight-action-card">
-          <div><span className="section-kicker">HỒ SƠ ĐÃ KẾT NỐI</span><h3>{user.email ?? "Tài khoản NutriPlan"}</h3><p>Dữ liệu định danh không được gửi vào nội dung AI; backend chỉ chuyển các chỉ số tối thiểu cần thiết.</p></div>
+        <div className="insight-action-card insight-action-card--controls">
           <div className="insight-action-card__buttons">
             <button className="button button--outline" disabled={loading} onClick={() => void loadLatest()}><RefreshCw size={17} className={loading ? "spin" : ""} /> Làm mới</button>
             <button className="button button--dark" disabled={loading} onClick={() => void createInsight()}>{loading ? <LoaderCircle size={17} className="spin" /> : <BrainCircuit size={17} />}{loading ? "Đang phân tích..." : "Nhận AI Insight"}</button>

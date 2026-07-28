@@ -1,13 +1,30 @@
 import Image from "next/image";
-import { Clock3, Flame, Target } from "lucide-react";
+import { Check, Clock3, Flame, Target } from "lucide-react";
 import type { Meal } from "@/lib/data";
 
-export function MealCard({ slot, meal, onClick }: { slot: string; meal: Meal; onClick: () => void }) {
+export function MealCard({
+  slot,
+  meal,
+  eaten = false,
+  onClick
+}: {
+  slot: string;
+  meal: Meal;
+  eaten?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <article className="meal-card" onClick={onClick}>
+    <button
+      type="button"
+      className={`meal-card ${eaten ? "meal-card--eaten" : ""}`}
+      onClick={onClick}
+    >
       <div className="meal-card__image">
         <Image src={meal.image} alt={meal.name} fill sizes="(max-width: 800px) 100vw, 33vw" />
-        <span>{slot}</span>
+        <span className="meal-card__slot">{slot}</span>
+        {eaten ? (
+          <span className="meal-card__eaten"><Check size={13} /> Đã ăn</span>
+        ) : null}
       </div>
       <div className="meal-card__body">
         <h3>{meal.name}</h3>
@@ -18,6 +35,6 @@ export function MealCard({ slot, meal, onClick }: { slot: string; meal: Meal; on
           <span><Clock3 size={15} /> {meal.prepTime} phút</span>
         </div>
       </div>
-    </article>
+    </button>
   );
 }

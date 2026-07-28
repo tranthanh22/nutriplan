@@ -1,4 +1,9 @@
-export type View = "home" | "plan" | "kitchens" | "journal";
+export type View =
+  | "home"
+  | "plan"
+  | "kitchens"
+  | "journal"
+  | "settings";
 
 export type Profile = {
   name: string;

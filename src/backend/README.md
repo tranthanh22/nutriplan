@@ -1,6 +1,6 @@
 # NutriPlan Backend
 
-NestJS API cho MVP NutriPlan, dùng Supabase Auth và PostgreSQL, đồng thời gọi OpenAI để tạo insight sức khỏe từ dữ liệu người dùng.
+NestJS API cho MVP NutriPlan, dùng Supabase Auth và PostgreSQL, đồng thời gọi Gemini để tạo insight sức khỏe từ dữ liệu người dùng.
 
 ## Chuẩn bị môi trường
 
@@ -14,9 +14,9 @@ npm install
 - `SUPABASE_URL`: URL project Supabase.
 - `SUPABASE_PUBLISHABLE_KEY`: khóa public dùng để xác thực JWT và truy vấn theo RLS.
 - `SUPABASE_SECRET_KEY`: khóa server, chỉ dùng ở backend cho AI insight và tác vụ đặc quyền; không đưa vào frontend hay Git.
-- `AI_PROVIDER=mock`: chế độ miễn phí để phát triển/test; sinh insight cục bộ theo schema, không gọi OpenAI.
-- `AI_PROVIDER=openai` và `OPENAI_API_KEY`: gọi OpenAI thật. API key không phải là một loại “free key”; việc gọi API cần tài khoản API có credit/thanh toán hợp lệ.
-- `OPENAI_TIMEOUT_MS`, `OPENAI_MAX_RETRIES`: giới hạn thời gian và số retry của SDK.
+- `AI_PROVIDER=mock`: sinh insight cục bộ theo schema, không gọi dịch vụ AI.
+- `AI_PROVIDER=gemini` và `GEMINI_API_KEY`: gọi Gemini để tạo AI Insight và phản hồi trợ lý ảo.
+- `GEMINI_MODEL`, `GEMINI_TIMEOUT_MS`: model và giới hạn thời gian phản hồi của Gemini.
 - `FRONTEND_URL`: URL frontend dùng làm trang quay lại sau checkout.
 - `STRIPE_SECRET_KEY`: secret key Stripe, chỉ đặt ở backend.
 - `STRIPE_WEBHOOK_SECRET`: chữ ký webhook Stripe, chỉ đặt ở backend.
@@ -55,7 +55,8 @@ API JWT Guard xác thực token với Supabase và mọi truy vấn dữ liệu 
 | Auth | `GET /auth/me` | Sẵn sàng |
 | Hồ sơ người dùng | `GET/PATCH /profiles/me` | Sẵn sàng |
 | Hồ sơ dinh dưỡng | `POST /nutrition-profiles/calculate`, `POST /nutrition-profiles`, `GET /nutrition-profiles/current`, `GET /nutrition-profiles/versions` | Sẵn sàng, có phiên bản |
-| AI sức khỏe | `POST /ai-health-insights`, `GET /ai-health-insights/latest` | Sẵn sàng với `mock` hoặc OpenAI thật; có timeout, retry SDK và chặn request trùng |
+| AI sức khỏe | `POST /ai-health-insights`, `GET /ai-health-insights/latest` | Sẵn sàng với `mock` hoặc Gemini; có structured output, timeout và chặn request trùng |
+| Trợ lý ảo | `POST /assistant/messages`, `GET /assistant/conversations` | Sẵn sàng với Gemini và lưu lịch sử hội thoại |
 | Gói thuê bao | `GET /subscriptions/plans`, `GET /subscriptions/current`, `POST /subscriptions/checkout`, `POST /subscriptions/webhooks/stripe` | Sẵn sàng với Stripe Checkout, webhook idempotent |
 | Món ăn | `GET /dishes/preview`, `GET /dishes/:id`, `GET /dishes/allergens`, `GET /dishes/:id/recipe` | Preview/chi tiết trả dinh dưỡng và dị ứng; công thức cần subscription |
 | Thực đơn | `GET /meal-plans/current` | Sẵn sàng; cần subscription |

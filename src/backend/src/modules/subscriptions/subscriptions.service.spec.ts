@@ -168,4 +168,43 @@ describe('SubscriptionsService Stripe checkout', () => {
     expect(constructEvent).toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
+
+  it('creates an owned Stripe Customer Portal session', async () => {
+    const { service } = createService();
+    const createPortalSession = jest.fn().mockResolvedValue({
+      id: 'bps_test_owned',
+      url: 'https://billing.stripe.test/session',
+    });
+    Object.defineProperty(service, 'stripeClient', {
+      configurable: true,
+      value: {
+        billingPortal: {
+          sessions: { create: createPortalSession },
+        },
+      },
+    });
+    const internal = service as unknown as {
+      getOrCreateStripeCustomer: (currentUser: AuthUser) => Promise<string>;
+      getOrCreatePortalConfiguration: (
+        stripe: Stripe,
+        frontendUrl: string,
+      ) => Promise<string>;
+    };
+    jest
+      .spyOn(internal, 'getOrCreateStripeCustomer')
+      .mockResolvedValue('cus_test_owned');
+    jest
+      .spyOn(internal, 'getOrCreatePortalConfiguration')
+      .mockResolvedValue('bpc_test_settings');
+
+    await expect(service.createBillingPortal(user)).resolves.toEqual({
+      url: 'https://billing.stripe.test/session',
+      testMode: true,
+    });
+    expect(createPortalSession).toHaveBeenCalledWith({
+      customer: 'cus_test_owned',
+      configuration: 'bpc_test_settings',
+      return_url: 'http://localhost:3000/?settings=billing',
+    });
+  });
 });

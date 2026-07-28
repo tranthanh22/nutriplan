@@ -28,7 +28,7 @@ export class MockHealthInsightProvider implements HealthInsightProvider {
         ],
         questions_for_user: ['Bạn có gặp khó khăn khi tuân theo mức calorie hiện tại không?'],
         limitations: [
-          'Đây là dữ liệu mô phỏng để phát triển, không phải kết quả từ mô hình OpenAI.',
+          'Đây là dữ liệu mô phỏng để phát triển, không phải kết quả từ mô hình Gemini.',
           'Kết quả không thay thế đánh giá của bác sĩ hoặc chuyên gia dinh dưỡng.',
         ],
         safety_flags: [],

@@ -20,7 +20,7 @@ export class OrdersController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Tạo Kitchen Order (khung chờ RPC transaction)' })
+  @ApiOperation({ summary: 'Tạo đơn demo và lịch món bếp theo gói đã chọn' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateKitchenOrderDto) {
     return this.orders.create(user, dto);
   }

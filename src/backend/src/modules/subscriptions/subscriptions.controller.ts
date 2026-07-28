@@ -44,6 +44,15 @@ export class SubscriptionsController {
   }
 
   @ApiBearerAuth()
+  @Post('billing-portal')
+  @ApiOperation({
+    summary: 'Mở Stripe Customer Portal để quản lý phương thức thanh toán',
+  })
+  billingPortal(@CurrentUser() user: AuthUser) {
+    return this.subscriptions.createBillingPortal(user);
+  }
+
+  @ApiBearerAuth()
   @Get('checkout/:sessionId')
   @ApiOperation({ summary: 'Đối soát Stripe Checkout Session và trả subscription mới nhất' })
   checkoutStatus(

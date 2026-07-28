@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck, X } from "lucide-react";
+import { AlertCircle, LoaderCircle, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import type { Profile } from "@/types/app";
@@ -12,15 +12,32 @@ export function ProfileModal({
 }: {
   value: Profile;
   onClose: () => void;
-  onSave: (value: Profile) => void;
+  onSave: (value: Profile) => void | Promise<void>;
 }) {
   const [form, setForm] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const update = <K extends keyof Profile>(key: K, next: Profile[K]) =>
     setForm((current) => ({ ...current, [key]: next }));
 
+  async function submit() {
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(form);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Không thể lưu hồ sơ dinh dưỡng."
+      );
+      setSaving(false);
+    }
+  }
+
   return (
     <Modal onClose={onClose}>
-      <form onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
+      <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <div className="modal-header">
           <div><span className="section-kicker">HỒ SƠ DINH DƯỠNG</span><h2>Cập nhật chỉ số</h2></div>
           <button type="button" className="modal-close" onClick={onClose}><X size={19} /></button>
@@ -39,10 +56,14 @@ export function ProfileModal({
           <label>Mục tiêu<select value={form.goal} onChange={(event) => update("goal", event.target.value as Profile["goal"])}><option value="lose">Giảm mỡ lành mạnh</option><option value="maintain">Duy trì cân nặng</option><option value="gain">Tăng cơ</option></select></label>
           <label>Dị ứng thực phẩm<input value={form.allergies} onChange={(event) => update("allergies", event.target.value)} /></label>
           <div className="medical-note"><ShieldCheck size={18} /><span>Kết quả chỉ hỗ trợ lập kế hoạch, không thay thế tư vấn y khoa.</span></div>
+          {error && <div className="login-error"><AlertCircle size={17} /><span>{error}</span></div>}
         </div>
         <div className="modal-actions">
-          <button type="button" className="button button--outline" onClick={onClose}>Hủy</button>
-          <button className="button button--dark" type="submit">Lưu và tính lại</button>
+          <button type="button" className="button button--outline" disabled={saving} onClick={onClose}>Hủy</button>
+          <button className="button button--dark" type="submit" disabled={saving}>
+            {saving ? <LoaderCircle className="spin" size={17} /> : null}
+            {saving ? "Đang tính và lưu…" : "Lưu và tính lại"}
+          </button>
         </div>
       </form>
     </Modal>

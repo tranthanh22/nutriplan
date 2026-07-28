@@ -1,7 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { ArrowRight, Minus, PackageCheck, Plus, ShieldCheck, Sparkles, X } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  LoaderCircle,
+  Minus,
+  PackageCheck,
+  Plus,
+  ShieldCheck,
+  Sparkles,
+  X
+} from "lucide-react";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import type { KitchenOffer } from "@/lib/data";
@@ -20,6 +30,55 @@ export function OrderModal({
 }) {
   const [quantity, setQuantity] = useState(1);
   const [step, setStep] = useState<1 | 2>(1);
+  const [recipientName, setRecipientName] = useState("Nguyễn Minh Anh");
+  const [recipientPhone, setRecipientPhone] = useState("+84901234567");
+  const [deliveryAddress, setDeliveryAddress] = useState(
+    "227 Nguyễn Văn Cừ, Quận 5, TP.HCM"
+  );
+  const [deliveryNote, setDeliveryNote] = useState("Không có");
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submitOrder() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          offerCode: offer.id,
+          recipientName,
+          recipientPhone,
+          deliveryAddress: { line1: deliveryAddress },
+          deliveryNote,
+          idempotencyKey,
+          quantity
+        })
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message =
+          payload &&
+          typeof payload === "object" &&
+          "message" in payload &&
+          typeof payload.message === "string"
+            ? payload.message
+            : "Không thể tạo lịch món từ bếp.";
+        throw new Error(message);
+      }
+      onComplete();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Không thể tạo lịch món từ bếp."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Modal onClose={onClose}>
@@ -33,13 +92,13 @@ export function OrderModal({
       </div>
       {step === 1 ? (
         <div className="form-stack">
-          <label>Họ tên người nhận<input defaultValue="Nguyễn Minh Anh" /></label>
+          <label>Họ tên người nhận<input value={recipientName} onChange={(event) => setRecipientName(event.target.value)} /></label>
           <div className="form-grid">
-            <label>Số điện thoại<input defaultValue="090 123 4567" /></label>
+            <label>Số điện thoại<input value={recipientPhone} onChange={(event) => setRecipientPhone(event.target.value)} /></label>
             <label>Khung giờ giao<select defaultValue="12:00 – 12:30"><option>11:30 – 12:00</option><option>12:00 – 12:30</option><option>12:30 – 13:00</option></select></label>
           </div>
-          <label>Địa chỉ giao<input defaultValue="227 Nguyễn Văn Cừ, Quận 5, TP.HCM" /></label>
-          <label>Dị ứng hoặc ghi chú<input defaultValue="Không có" /></label>
+          <label>Địa chỉ giao<input value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} /></label>
+          <label>Dị ứng hoặc ghi chú<input value={deliveryNote} onChange={(event) => setDeliveryNote(event.target.value)} /></label>
           <div className="quantity-line">
             <span>{offer.durationDays === 1 ? "Số lượng phần" : "Số lượng gói"}</span>
             <div>
@@ -63,9 +122,23 @@ export function OrderModal({
           {subscribed && <div className="plus-note"><Sparkles size={17} /> Khi giao thành công, món sẽ tự động vào Meal Log.</div>}
         </div>
       )}
+      {error && <div className="login-error"><AlertCircle size={17} /><span>{error}</span></div>}
       <div className="modal-actions">
-        <button className="button button--outline" onClick={() => step === 1 ? onClose() : setStep(1)}>{step === 1 ? "Hủy" : "Quay lại"}</button>
-        <button className="button button--dark" onClick={() => step === 1 ? setStep(2) : onComplete()}>{step === 1 ? "Tiếp tục" : "Xác nhận đặt món"} <ArrowRight size={17} /></button>
+        <button className="button button--outline" disabled={submitting} onClick={() => step === 1 ? onClose() : setStep(1)}>{step === 1 ? "Hủy" : "Quay lại"}</button>
+        <button
+          className="button button--dark"
+          disabled={
+            submitting ||
+            !recipientName.trim() ||
+            !recipientPhone.trim() ||
+            !deliveryAddress.trim()
+          }
+          onClick={() => step === 1 ? setStep(2) : void submitOrder()}
+        >
+          {submitting ? <LoaderCircle className="spin" size={17} /> : null}
+          {step === 1 ? "Tiếp tục" : submitting ? "Đang tạo lịch…" : "Xác nhận đặt món"}
+          {!submitting && <ArrowRight size={17} />}
+        </button>
       </div>
     </Modal>
   );

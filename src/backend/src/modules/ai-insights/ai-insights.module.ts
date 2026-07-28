@@ -4,7 +4,7 @@ import { NutritionModule } from '../nutrition/nutrition.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AiInsightsController } from './ai-insights.controller';
 import { AiInsightsService } from './ai-insights.service';
-import { OpenAiHealthInsightProvider } from './openai-health-insight.provider';
+import { GeminiHealthInsightProvider } from './gemini-health-insight.provider';
 import {
   HEALTH_INSIGHT_PROVIDER,
   type HealthInsightProvider,
@@ -16,17 +16,17 @@ import { MockHealthInsightProvider } from './mock-health-insight.provider';
   controllers: [AiInsightsController],
   providers: [
     AiInsightsService,
-    OpenAiHealthInsightProvider,
+    GeminiHealthInsightProvider,
     MockHealthInsightProvider,
     {
       provide: HEALTH_INSIGHT_PROVIDER,
-      inject: [ConfigService, OpenAiHealthInsightProvider, MockHealthInsightProvider],
+      inject: [ConfigService, GeminiHealthInsightProvider, MockHealthInsightProvider],
       useFactory: (
         config: ConfigService,
-        openai: OpenAiHealthInsightProvider,
+        gemini: GeminiHealthInsightProvider,
         mock: MockHealthInsightProvider,
       ): HealthInsightProvider =>
-        config.get<string>('AI_PROVIDER') === 'mock' ? mock : openai,
+        config.get<string>('AI_PROVIDER') === 'mock' ? mock : gemini,
     },
   ],
 })

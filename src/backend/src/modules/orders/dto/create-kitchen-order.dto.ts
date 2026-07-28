@@ -1,10 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsObject, IsOptional, IsPhoneNumber, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsObject,
+  IsInt,
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateKitchenOrderDto {
   @ApiProperty()
-  @IsUUID()
-  offerId: string;
+  @IsString()
+  @MaxLength(100)
+  offerCode: string;
 
   @ApiProperty()
   @IsString()
@@ -29,4 +39,10 @@ export class CreateKitchenOrderDto {
   @IsString()
   @MaxLength(100)
   idempotencyKey: string;
+
+  @ApiProperty({ minimum: 1, maximum: 20, default: 1 })
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  quantity: number;
 }

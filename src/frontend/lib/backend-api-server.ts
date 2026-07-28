@@ -44,5 +44,8 @@ export async function forwardBackendJson(
 }
 
 export function unauthorizedResponse() {
-  return NextResponse.json({ message: "Vui lòng đăng nhập trước khi mua subscription." }, { status: 401 });
+  return NextResponse.json(
+    { message: "Vui lòng đăng nhập để tiếp tục." },
+    { status: 401 }
+  );
 }

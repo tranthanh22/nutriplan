@@ -16,6 +16,7 @@ import {
   Leaf,
   LogIn,
   Menu,
+  Settings,
   Sparkles
 } from "lucide-react";
 import type { Profile, View } from "@/types/app";
@@ -25,7 +26,8 @@ const viewLabels: Record<View, string> = {
   home: "Tổng quan",
   plan: "Thực đơn",
   kitchens: "Bếp đối tác",
-  journal: "Nhật ký"
+  journal: "Nhật ký",
+  settings: "Cài đặt"
 };
 
 export function AppNavigation({
@@ -86,6 +88,7 @@ export function AppNavigation({
           <NavButton active={view === "plan"} icon={<CalendarDays size={19} />} label="Thực đơn của tôi" onClick={() => onNavigate("plan")} />
           <NavButton active={view === "kitchens"} icon={<ChefHat size={19} />} label="Bếp đối tác" onClick={() => onNavigate("kitchens")} />
           <NavButton active={view === "journal"} icon={<BarChart3 size={19} />} label="Nhật ký dinh dưỡng" onClick={() => onNavigate("journal")} />
+          <NavButton active={view === "settings"} icon={<Settings size={19} />} label="Cài đặt" onClick={() => onNavigate("settings")} />
         </nav>
         <div className="sidebar__spacer" />
         <div className={`membership-card ${subscribed ? "membership-card--active" : ""}`}>
