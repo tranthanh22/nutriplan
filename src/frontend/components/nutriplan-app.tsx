@@ -31,6 +31,8 @@ export function NutriPlanApp() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    const checkoutConfirmed =
+      window.sessionStorage.getItem("nutriplan-checkout-confirmed") === "true";
     const saved = window.localStorage.getItem("nutriplan-demo");
     if (saved) {
       try {
@@ -46,6 +48,7 @@ export function NutriPlanApp() {
         window.localStorage.removeItem("nutriplan-demo");
       }
     }
+    if (checkoutConfirmed) setSubscribed(true);
     setHydrated(true);
   }, []);
 
@@ -59,6 +62,51 @@ export function NutriPlanApp() {
     const timer = window.setTimeout(() => setToast(""), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkoutStatus = new URLSearchParams(window.location.search).get("checkout");
+
+    async function refreshSubscription(attempt = 0) {
+      try {
+        const response = await fetch("/api/subscriptions/current", { cache: "no-store" });
+        if (!response.ok) return;
+        const current = await response.json() as { status?: string; current_period_end?: string } | null;
+        const active = Boolean(
+          current &&
+          ["active", "cancel_at_period_end"].includes(current.status ?? "") &&
+          current.current_period_end &&
+          new Date(current.current_period_end) > new Date()
+        );
+        if (cancelled) return;
+        if (!active && checkoutStatus === "success" && attempt < 5) {
+          window.setTimeout(() => void refreshSubscription(attempt + 1), 1200);
+          return;
+        }
+        setSubscribed(active);
+        if (active && checkoutStatus === "success") {
+          window.sessionStorage.removeItem("nutriplan-checkout-confirmed");
+          setToast("Thanh toán thành công. NutriPlan Plus đã được kích hoạt.");
+          window.history.replaceState({}, "", window.location.pathname);
+          return;
+        }
+        if (!active && checkoutStatus === "success") {
+          window.sessionStorage.removeItem("nutriplan-checkout-confirmed");
+        }
+      } catch {
+        // Giữ trạng thái local khi backend chưa chạy hoặc người dùng chưa đăng nhập.
+      }
+    }
+
+    if (checkoutStatus === "cancelled") {
+      setToast("Bạn đã hủy thanh toán. Chưa có khoản phí nào được ghi nhận.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    void refreshSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const nutrition = useMemo(() => calculateNutrition(profile), [profile]);
   const consumed = useMemo(
@@ -85,12 +133,6 @@ export function NutriPlanApp() {
     setJournal((current) => [...current, mealToEntry(meal, source)]);
     setToast(`Đã ghi “${meal.name}” vào nhật ký hôm nay.`);
     setSelectedMeal(null);
-  };
-
-  const activateDemo = (_planCode: string, planName: string) => {
-    setSubscribed(true);
-    setSubscribeOpen(false);
-    setToast(`Gói subscription ${planName} đã được kích hoạt trong bản demo.`);
   };
 
   return (
@@ -173,7 +215,7 @@ export function NutriPlanApp() {
           }}
         />
       )}
-      {subscribeOpen && <SubscriptionModal onClose={() => setSubscribeOpen(false)} onActivate={activateDemo} />}
+      {subscribeOpen && <SubscriptionModal onClose={() => setSubscribeOpen(false)} />}
       {imageOpen && (
         <ImageAnalysisModal
           onClose={() => setImageOpen(false)}

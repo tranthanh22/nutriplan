@@ -31,9 +31,26 @@ export type KitchenOffer = {
   oldPrice?: number;
   calories: number;
   protein: number;
+  carbs: number;
+  fat: number;
   delivery: string;
   badge: string;
-  type: "Món lẻ" | "Gói 5 ngày";
+  type: "Món lẻ" | "Gói 7 ngày" | "Gói 30 ngày" | "Gói 120 ngày";
+  durationDays: 1 | 7 | 30 | 120;
+  mealsPerDay: number;
+  location: string;
+  distanceKm: number;
+  dietTypes: string[];
+  menuHighlights: string[];
+  included: string[];
+  comments: {
+    id: string;
+    author: string;
+    rating: number;
+    date: string;
+    comment: string;
+    verified: boolean;
+  }[];
 };
 
 export const meals: Meal[] = [
@@ -131,53 +148,4 @@ export const weekPlan: DayPlan[] = [
   { day: "Thứ sáu", date: "19/07", meals: [{ slot: "Sáng", meal: meals[0] }, { slot: "Trưa", meal: meals[1] }, { slot: "Tối", meal: meals[5] }] },
   { day: "Thứ bảy", date: "20/07", meals: [{ slot: "Sáng", meal: meals[3] }, { slot: "Trưa", meal: meals[4] }, { slot: "Tối", meal: meals[2] }] },
   { day: "Chủ nhật", date: "21/07", meals: [{ slot: "Sáng", meal: meals[0] }, { slot: "Trưa", meal: meals[2] }, { slot: "Tối", meal: meals[5] }] }
-];
-
-export const kitchenOffers: KitchenOffer[] = [
-  {
-    id: "fitbox-5",
-    kitchen: "FitBox Kitchen",
-    title: "Gói trưa cân bằng · 5 ngày",
-    description: "5 bữa trưa thay đổi mỗi ngày, định lượng rõ và giao tận nơi.",
-    image: "https://images.unsplash.com/photo-1543362906-acfc16c67564?auto=format&fit=crop&w=1200&q=85",
-    rating: 4.9,
-    reviews: 128,
-    price: 329000,
-    oldPrice: 365000,
-    calories: 580,
-    protein: 42,
-    delivery: "Miễn phí trong 3 km",
-    badge: "Phù hợp 94%",
-    type: "Gói 5 ngày"
-  },
-  {
-    id: "green-bowl",
-    kitchen: "Green Bowl",
-    title: "Cơm gà gạo lứt sốt tiêu",
-    description: "Ức gà áp chảo, gạo lứt, bông cải và sốt tiêu đen ít đường.",
-    image: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=85",
-    rating: 4.8,
-    reviews: 86,
-    price: 69000,
-    calories: 605,
-    protein: 46,
-    delivery: "Giao trong 35–45 phút",
-    badge: "Giàu protein",
-    type: "Món lẻ"
-  },
-  {
-    id: "lean-lab",
-    kitchen: "Lean Lab",
-    title: "Cá hồi áp chảo & khoai nghiền",
-    description: "Cá hồi Na Uy, khoai nghiền ít bơ và salad theo mùa.",
-    image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=85",
-    rating: 4.7,
-    reviews: 64,
-    price: 99000,
-    calories: 532,
-    protein: 39,
-    delivery: "Giao trong 40–50 phút",
-    badge: "Omega-3",
-    type: "Món lẻ"
-  }
 ];

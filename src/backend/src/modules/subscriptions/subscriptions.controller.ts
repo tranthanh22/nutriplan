@@ -1,8 +1,19 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  RawBodyRequest,
+  Req,
+} from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { CheckoutSessionParamDto } from './dto/checkout-session-param.dto';
 import { CreateSubscriptionCheckoutDto } from './dto/create-subscription-checkout.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -27,8 +38,28 @@ export class SubscriptionsController {
 
   @ApiBearerAuth()
   @Post('checkout')
-  @ApiOperation({ summary: 'Tạo checkout subscription (khung chờ payment provider)' })
+  @ApiOperation({ summary: 'Tạo Stripe Checkout Session cho subscription' })
   checkout(@CurrentUser() user: AuthUser, @Body() dto: CreateSubscriptionCheckoutDto) {
     return this.subscriptions.createCheckout(user, dto);
+  }
+
+  @ApiBearerAuth()
+  @Get('checkout/:sessionId')
+  @ApiOperation({ summary: 'Đối soát Stripe Checkout Session và trả subscription mới nhất' })
+  checkoutStatus(
+    @CurrentUser() user: AuthUser,
+    @Param() params: CheckoutSessionParamDto,
+  ) {
+    return this.subscriptions.checkoutStatus(user, params.sessionId);
+  }
+
+  @Public()
+  @Post('webhooks/stripe')
+  @ApiOperation({ summary: 'Stripe webhook có kiểm tra chữ ký' })
+  stripeWebhook(
+    @Req() request: RawBodyRequest<Request>,
+    @Headers('stripe-signature') signature?: string,
+  ) {
+    return this.subscriptions.handleStripeWebhook(request.rawBody, signature);
   }
 }

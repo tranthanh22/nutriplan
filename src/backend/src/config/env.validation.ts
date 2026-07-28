@@ -12,6 +12,10 @@ const schema = Joi.object({
   AI_PROVIDER: Joi.string().valid('openai', 'mock').default('mock'),
   OPENAI_TIMEOUT_MS: Joi.number().integer().min(1000).max(120000).default(20000),
   OPENAI_MAX_RETRIES: Joi.number().integer().min(0).max(5).default(2),
+  FRONTEND_URL: Joi.string().uri().default('http://localhost:3000'),
+  STRIPE_TEST_MODE: Joi.boolean().truthy('true').falsy('false').default(true),
+  STRIPE_SECRET_KEY: Joi.string().allow('').optional(),
+  STRIPE_WEBHOOK_SECRET: Joi.string().allow('').optional(),
 });
 
 export function validateEnvironment(config: Record<string, unknown>) {
@@ -31,6 +35,18 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (value.NODE_ENV === 'production' && value.AI_PROVIDER === 'openai' && !value.OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is required when AI_PROVIDER=openai in production');
+  }
+
+  if (value.NODE_ENV === 'production' && (!value.STRIPE_SECRET_KEY || !value.STRIPE_WEBHOOK_SECRET)) {
+    throw new Error('STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are required in production');
+  }
+
+  if (
+    value.STRIPE_TEST_MODE &&
+    value.STRIPE_SECRET_KEY &&
+    !String(value.STRIPE_SECRET_KEY).startsWith('sk_test_')
+  ) {
+    throw new Error('STRIPE_TEST_MODE=true requires a Stripe sk_test_ secret key');
   }
 
   return value as Record<string, unknown>;

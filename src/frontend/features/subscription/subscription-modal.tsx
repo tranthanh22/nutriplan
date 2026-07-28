@@ -1,61 +1,147 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, ArrowRight, CheckCircle2, CreditCard, LoaderCircle, LockKeyhole, Sparkles, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 
-const subscriptionOptions = [
-  { code: "weekly", name: "7 ngày", price: "19.000đ", note: "Dùng thử ngắn hạn", featured: false },
-  { code: "monthly", name: "1 tháng", price: "49.000đ", note: "Phổ biến nhất", featured: true },
-  { code: "quarterly", name: "3 tháng", price: "129.000đ", note: "Tiết kiệm 18.000đ", featured: false }
-] as const;
+type SubscriptionPlan = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  price_amount: number | string;
+  currency: string;
+  features: { access_days?: number; recipe_access?: boolean };
+};
 
-export function SubscriptionModal({
-  onClose,
-  onActivate
-}: {
-  onClose: () => void;
-  onActivate: (planCode: string, planName: string) => void;
-}) {
-  const [selectedCode, setSelectedCode] = useState<string>("monthly");
-  const selectedPlan = subscriptionOptions.find((plan) => plan.code === selectedCode) ?? subscriptionOptions[1];
+function formatPrice(amount: number | string, currency: string) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0
+  }).format(Number(amount));
+}
+
+function planDuration(plan: SubscriptionPlan) {
+  const days = plan.features?.access_days;
+  if (days === 7) return "7 ngày";
+  if (days === 30) return "1 tháng";
+  if (days === 90) return "3 tháng";
+  return `${days ?? 0} ngày`;
+}
+
+function readError(payload: unknown) {
+  if (!payload || typeof payload !== "object" || !("message" in payload)) return "Không thể tạo phiên thanh toán.";
+  const message = payload.message;
+  return Array.isArray(message) ? message.join(", ") : typeof message === "string" ? message : "Không thể tạo phiên thanh toán.";
+}
+
+export function SubscriptionModal({ onClose }: { onClose: () => void }) {
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [error, setError] = useState("");
+  const idempotencyKey = useRef("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/subscriptions", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const payload: unknown = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(readError(payload));
+        const nextPlans = Array.isArray(payload) ? payload as SubscriptionPlan[] : [];
+        setPlans(nextPlans);
+        setSelectedId(nextPlans.find((plan) => plan.code === "monthly")?.id ?? nextPlans[0]?.id ?? "");
+      })
+      .catch((requestError) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setError(requestError instanceof Error ? requestError.message : "Không thể tải các gói subscription.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const selectedPlan = plans.find((plan) => plan.id === selectedId) ?? null;
+
+  async function checkout() {
+    if (!selectedPlan) return;
+    setCheckingOut(true);
+    setError("");
+    idempotencyKey.current ||= crypto.randomUUID();
+
+    try {
+      const response = await fetch("/api/subscriptions/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: selectedPlan.id, idempotencyKey: idempotencyKey.current })
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (response.status === 401) {
+        window.location.assign("/login?next=/");
+        return;
+      }
+      if (!response.ok) throw new Error(readError(payload));
+      if (
+        payload &&
+        typeof payload === "object" &&
+        "status" in payload &&
+        payload.status === "already_paid"
+      ) {
+        window.location.assign("/?checkout=success");
+        return;
+      }
+      if (!payload || typeof payload !== "object" || !("checkoutUrl" in payload) || typeof payload.checkoutUrl !== "string") {
+        throw new Error("Giao dịch đã được thanh toán hoặc checkout URL không hợp lệ.");
+      }
+      window.location.assign(payload.checkoutUrl);
+    } catch (checkoutError) {
+      setError(checkoutError instanceof Error ? checkoutError.message : "Không thể bắt đầu thanh toán.");
+      setCheckingOut(false);
+    }
+  }
 
   return (
     <Modal onClose={onClose}>
       <div className="subscription-modal">
-        <button className="modal-close subscription-modal__close" onClick={onClose}><X size={19} /></button>
+        <button className="modal-close subscription-modal__close" aria-label="Đóng" onClick={onClose}><X size={19} /></button>
         <div className="subscription-modal__mark"><Sparkles /></div>
         <span className="section-kicker">NUTRIPLAN PLUS</span>
+        {process.env.NEXT_PUBLIC_STRIPE_TEST_MODE === "true" && (
+          <div className="stripe-test-badge">
+            <CreditCard size={15} /> STRIPE TEST MODE · KHÔNG THU TIỀN THẬT
+          </div>
+        )}
         <h2>Ăn đúng kế hoạch,<br />nhẹ đầu mỗi ngày.</h2>
         <p>Mở khóa bộ công cụ giúp bạn biến mục tiêu thành thói quen thực tế.</p>
         <div className="benefit-list">
-          <div><CheckCircle2 /><span><strong>Thực đơn 7 ngày</strong><small>Recipe, định lượng và dinh dưỡng chi tiết</small></span></div>
-          <div><CheckCircle2 /><span><strong>Recipe đầy đủ</strong><small>Nguyên liệu, định lượng và các bước chế biến</small></span></div>
-          <div><CheckCircle2 /><span><strong>Làm mới mỗi tuần</strong><small>Nhận kế hoạch 7 ngày mới khi gói còn hiệu lực</small></span></div>
+          <div><CheckCircle2 /><span><strong>Thực đơn cá nhân hóa</strong><small>Recipe, định lượng và dinh dưỡng chi tiết</small></span></div>
+          <div><CheckCircle2 /><span><strong>AI Health Insight đầy đủ</strong><small>Quan sát và đề xuất dựa trên hồ sơ hiện hành</small></span></div>
+          <div><CheckCircle2 /><span><strong>Làm mới mỗi tuần</strong><small>Nhận kế hoạch mới khi gói còn hiệu lực</small></span></div>
         </div>
-        <div className="subscription-options" aria-label="Chọn thời hạn subscription">
-          {subscriptionOptions.map((plan) => (
-            <button
-              type="button"
-              key={plan.code}
-              className={`subscription-option ${selectedCode === plan.code ? "subscription-option--active" : ""}`}
-              onClick={() => setSelectedCode(plan.code)}
-            >
-              {plan.featured && <span className="subscription-option__badge">Phổ biến</span>}
-              <strong>{plan.name}</strong>
-              <b>{plan.price}</b>
-              <small>{plan.note}</small>
+
+        {loading && <div className="subscription-loading"><LoaderCircle className="spin" /><span>Đang tải bảng giá…</span></div>}
+        {!loading && plans.length > 0 && <div className="subscription-options" aria-label="Chọn thời hạn subscription">
+          {plans.map((plan) => (
+            <button type="button" key={plan.id} className={`subscription-option ${selectedId === plan.id ? "subscription-option--active" : ""}`} onClick={() => { setSelectedId(plan.id); idempotencyKey.current = ""; }}>
+              {plan.code === "monthly" && <span className="subscription-option__badge">Phổ biến</span>}
+              <strong>{planDuration(plan)}</strong>
+              <b>{formatPrice(plan.price_amount, plan.currency)}</b>
+              <small>{plan.code === "quarterly" ? "Tiết kiệm nhất" : plan.description}</small>
             </button>
           ))}
-        </div>
-        <div className="subscription-price">
-          <div><strong>{selectedPlan.price}</strong><span> / {selectedPlan.name}</span></div>
-          <small>Kế hoạch làm mới mỗi 7 ngày · Không bao gồm tiền món bếp</small>
-        </div>
-        <button className="button button--cream button--full" onClick={() => onActivate(selectedPlan.code, selectedPlan.name)}>
-          Chọn gói {selectedPlan.name} <ArrowRight size={18} />
+        </div>}
+
+        {selectedPlan && <div className="subscription-price"><div><strong>{formatPrice(selectedPlan.price_amount, selectedPlan.currency)}</strong><span> / {planDuration(selectedPlan)}</span></div><small>Kế hoạch làm mới mỗi 7 ngày · Không bao gồm tiền món bếp</small></div>}
+        {error && <div className="subscription-error"><AlertCircle size={17} /><span>{error}</span></div>}
+        <button className="button button--cream button--full" disabled={!selectedPlan || checkingOut} onClick={() => void checkout()}>
+          {checkingOut ? <LoaderCircle className="spin" size={18} /> : <LockKeyhole size={18} />}
+          {checkingOut ? "Đang mở cổng thanh toán…" : selectedPlan ? `Thanh toán gói ${planDuration(selectedPlan)}` : "Chọn một gói"}
+          {!checkingOut && <ArrowRight size={18} />}
         </button>
-        <small className="demo-caption">Bản MVP mô phỏng — không phát sinh thanh toán thật.</small>
+        <small className="demo-caption">Thanh toán được xử lý bảo mật bởi Stripe. NutriPlan không lưu thông tin thẻ.</small>
       </div>
     </Modal>
   );

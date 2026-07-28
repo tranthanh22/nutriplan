@@ -1,6 +1,7 @@
 import { ArrowRight, Camera, ChefHat, Flame, Sparkles, Target } from "lucide-react";
 import { MealCard } from "@/components/shared/meal-card";
 import { MacroRow, Metric, ProgressRing } from "@/components/ui/nutrition-widgets";
+import { AiInsightDashboardCard } from "@/features/ai-insights/ai-insights-page";
 import type { Meal } from "@/lib/data";
 import { weekPlan } from "@/lib/data";
 import type { ConsumedNutrition, NutritionSummary, Profile, View } from "@/types/app";
@@ -73,6 +74,8 @@ export function DashboardPage({
           <button className="link-button" onClick={onEdit}>Cập nhật chỉ số <ArrowRight size={15} /></button>
         </div>
       </section>
+
+      <AiInsightDashboardCard onEditProfile={onEdit} />
 
       <section className="section-block">
         <div className="section-heading">

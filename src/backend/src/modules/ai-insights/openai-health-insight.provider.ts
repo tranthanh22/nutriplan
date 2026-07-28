@@ -1,11 +1,13 @@
 import {
   BadGatewayException,
   GatewayTimeoutException,
+  HttpException,
+  HttpStatus,
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI, { APIConnectionTimeoutError } from 'openai';
+import OpenAI, { APIConnectionTimeoutError, RateLimitError } from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { AiHealthInsightSchema } from './ai-insight.schema';
 import type {
@@ -78,6 +80,18 @@ export class OpenAiHealthInsightProvider implements HealthInsightProvider {
     } catch (error) {
       if (error instanceof APIConnectionTimeoutError) {
         throw new GatewayTimeoutException('OpenAI quá thời gian phản hồi');
+      }
+      if (error instanceof RateLimitError) {
+        if (error.code === 'insufficient_quota') {
+          throw new HttpException(
+            'OpenAI API đã hết quota/credit. Hãy kiểm tra Billing và Usage Limits, hoặc đặt AI_PROVIDER=mock để tiếp tục test miễn phí.',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+        throw new HttpException(
+          'OpenAI đang giới hạn tốc độ request. Hãy thử lại sau.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
       throw error;
     }

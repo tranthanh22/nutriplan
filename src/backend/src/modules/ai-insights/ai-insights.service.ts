@@ -237,6 +237,7 @@ export class AiInsightsService {
       const status = Number(error.status);
       if (status === 504) return 'provider_timeout';
       if (status === 502) return 'invalid_provider_output';
+      if (status === 429) return 'provider_quota_or_rate_limit';
     }
     return 'provider_error';
   }

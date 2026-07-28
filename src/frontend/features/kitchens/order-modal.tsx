@@ -29,7 +29,7 @@ export function OrderModal({
       </div>
       <div className="order-summary">
         <div className="order-summary__image"><Image src={offer.image} alt={offer.title} fill sizes="90px" /></div>
-        <div><small>{offer.kitchen} · {offer.type}</small><h3>{offer.title}</h3><span>{offer.calories} kcal · {offer.protein}g protein</span></div>
+        <div><small>{offer.kitchen} · {offer.type}</small><h3>{offer.title}</h3><span>{offer.calories} kcal/ngày · {offer.protein}g protein · {offer.location}</span></div>
       </div>
       {step === 1 ? (
         <div className="form-stack">
@@ -41,7 +41,7 @@ export function OrderModal({
           <label>Địa chỉ giao<input defaultValue="227 Nguyễn Văn Cừ, Quận 5, TP.HCM" /></label>
           <label>Dị ứng hoặc ghi chú<input defaultValue="Không có" /></label>
           <div className="quantity-line">
-            <span>Số lượng</span>
+            <span>{offer.durationDays === 1 ? "Số lượng phần" : "Số lượng gói"}</span>
             <div>
               <button onClick={() => setQuantity((value) => Math.max(1, value - 1))}><Minus size={16} /></button>
               <strong>{quantity}</strong>
@@ -70,4 +70,3 @@ export function OrderModal({
     </Modal>
   );
 }
-

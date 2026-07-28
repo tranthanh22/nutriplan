@@ -3,7 +3,7 @@ import {
   GatewayTimeoutException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { APIConnectionTimeoutError } from 'openai';
+import { APIConnectionTimeoutError, RateLimitError } from 'openai';
 import { OpenAiHealthInsightProvider } from './openai-health-insight.provider';
 
 const validOutput = {
@@ -51,6 +51,28 @@ describe('OpenAiHealthInsightProvider', () => {
     });
 
     await expect(provider.generate({}, 'safe-id')).rejects.toBeInstanceOf(BadGatewayException);
+  });
+
+  it('explains an exhausted OpenAI API quota without returning an internal error', async () => {
+    const provider = new OpenAiHealthInsightProvider(
+      config({ OPENAI_API_KEY: 'test-key', OPENAI_MODEL: 'test-model' }),
+    );
+    Object.defineProperty(provider, 'client', {
+      value: {
+        responses: {
+          parse: jest.fn().mockRejectedValue(
+            new RateLimitError(
+              429,
+              { code: 'insufficient_quota', message: 'quota exhausted' },
+              'quota exhausted',
+              new Headers(),
+            ),
+          ),
+        },
+      },
+    });
+
+    await expect(provider.generate({}, 'safe-id')).rejects.toMatchObject({ status: 429 });
   });
 
   it('returns validated structured output and usage', async () => {

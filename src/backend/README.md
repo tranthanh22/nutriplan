@@ -17,6 +17,19 @@ npm install
 - `AI_PROVIDER=mock`: chế độ miễn phí để phát triển/test; sinh insight cục bộ theo schema, không gọi OpenAI.
 - `AI_PROVIDER=openai` và `OPENAI_API_KEY`: gọi OpenAI thật. API key không phải là một loại “free key”; việc gọi API cần tài khoản API có credit/thanh toán hợp lệ.
 - `OPENAI_TIMEOUT_MS`, `OPENAI_MAX_RETRIES`: giới hạn thời gian và số retry của SDK.
+- `FRONTEND_URL`: URL frontend dùng làm trang quay lại sau checkout.
+- `STRIPE_SECRET_KEY`: secret key Stripe, chỉ đặt ở backend.
+- `STRIPE_WEBHOOK_SECRET`: chữ ký webhook Stripe, chỉ đặt ở backend.
+
+Để test thanh toán local, chạy Stripe CLI và chuyển tiếp webhook:
+
+```bash
+stripe listen --forward-to localhost:4000/api/v1/subscriptions/webhooks/stripe
+```
+
+Sao chép `whsec_...` Stripe CLI trả về vào `STRIPE_WEBHOOK_SECRET`, dùng `sk_test_...` cho `STRIPE_SECRET_KEY`, rồi thanh toán bằng thẻ test `4242 4242 4242 4242`.
+
+Hướng dẫn đầy đủ: [`docs/stripe-test-mode.md`](../../docs/stripe-test-mode.md).
 
 ## Chạy và kiểm tra
 
@@ -43,12 +56,12 @@ API JWT Guard xác thực token với Supabase và mọi truy vấn dữ liệu 
 | Hồ sơ người dùng | `GET/PATCH /profiles/me` | Sẵn sàng |
 | Hồ sơ dinh dưỡng | `POST /nutrition-profiles/calculate`, `POST /nutrition-profiles`, `GET /nutrition-profiles/current`, `GET /nutrition-profiles/versions` | Sẵn sàng, có phiên bản |
 | AI sức khỏe | `POST /ai-health-insights`, `GET /ai-health-insights/latest` | Sẵn sàng với `mock` hoặc OpenAI thật; có timeout, retry SDK và chặn request trùng |
-| Gói thuê bao | `GET /subscriptions/plans`, `GET /subscriptions/current` | Sẵn sàng |
+| Gói thuê bao | `GET /subscriptions/plans`, `GET /subscriptions/current`, `POST /subscriptions/checkout`, `POST /subscriptions/webhooks/stripe` | Sẵn sàng với Stripe Checkout, webhook idempotent |
 | Món ăn | `GET /dishes/preview`, `GET /dishes/:id`, `GET /dishes/allergens`, `GET /dishes/:id/recipe` | Preview/chi tiết trả dinh dưỡng và dị ứng; công thức cần subscription |
 | Thực đơn | `GET /meal-plans/current` | Sẵn sàng; cần subscription |
 | Nhà bếp | `GET /kitchens`, `GET /kitchens/:id/offers` | Sẵn sàng, không cần subscription |
 | Đơn hàng | `GET /orders/mine` | Sẵn sàng |
-| Checkout/thanh toán | `POST /subscriptions/checkout`, `POST /orders`, `PATCH /orders/:id/status`, `POST /payments/manual-confirmation` | Khung API trả `501` cho tới khi chốt nhà cung cấp thanh toán và luồng idempotency |
+| Checkout/thanh toán | Subscription qua Stripe; đơn bếp và xác nhận thủ công | Subscription sẵn sàng; thanh toán đơn bếp vẫn là khung MVP |
 
 Insight AI chỉ hỗ trợ người dùng hiểu dữ liệu, không thay thế chẩn đoán hoặc tư vấn của bác sĩ. Backend lưu phiên bản prompt/model và hash đầu vào để có thể kiểm tra, tái sử dụng kết quả và kiểm soát chi phí.
 

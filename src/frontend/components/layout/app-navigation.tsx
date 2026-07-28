@@ -1,4 +1,9 @@
+"use client";
+
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import {
   BarChart3,
   Bell,
@@ -9,10 +14,12 @@ import {
   CircleUserRound,
   Home,
   Leaf,
+  LogIn,
   Menu,
   Sparkles
 } from "lucide-react";
 import type { Profile, View } from "@/types/app";
+import { createClient } from "@/lib/supabase/client";
 
 const viewLabels: Record<View, string> = {
   home: "Tổng quan",
@@ -44,6 +51,29 @@ export function AppNavigation({
   onOpenProfile: () => void;
   onSubscribe: () => void;
 }) {
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    try {
+      const supabase = createClient();
+      void supabase.auth.getUser().then(({ data }: { data: { user: User | null } }) => {
+        if (active) setSignedIn(Boolean(data.user));
+      });
+      const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+        if (active) setSignedIn(Boolean(session?.user));
+      });
+      return () => {
+        active = false;
+        data.subscription.unsubscribe();
+      };
+    } catch {
+      return () => {
+        active = false;
+      };
+    }
+  }, []);
+
   return (
     <>
       <aside className={`sidebar ${mobileOpen ? "sidebar--open" : ""}`}>
@@ -79,7 +109,11 @@ export function AppNavigation({
           <div className="topbar__crumb"><span>NutriPlan</span><span>/</span><strong>{viewLabels[view]}</strong></div>
           <div className="topbar__actions">
             <button className="icon-button" aria-label="Thông báo"><Bell size={19} /><span className="notification-dot" /></button>
-            <button className="profile-button" onClick={onOpenProfile}><CircleUserRound size={19} /> Hồ sơ <ChevronDown size={15} /></button>
+            {signedIn ? (
+              <button className="profile-button" onClick={onOpenProfile}><CircleUserRound size={19} /> Hồ sơ <ChevronDown size={15} /></button>
+            ) : (
+              <Link className="profile-button profile-button--link" href="/login"><LogIn size={18} /> Đăng nhập</Link>
+            )}
           </div>
         </header>
         {children}
@@ -101,4 +135,3 @@ function NavButton({
 }) {
   return <button className={`nav-button ${active ? "nav-button--active" : ""}`} onClick={onClick}>{icon}<span>{label}</span></button>;
 }
-
