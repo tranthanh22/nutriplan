@@ -16,12 +16,57 @@ import {
 } from "@/features/meal-plan/meal-plan-api";
 import { MealPlanPage } from "@/features/meal-plan/meal-plan-page";
 import { MealModal } from "@/features/meals/meal-modal";
-import { ProfileModal } from "@/features/profile/profile-modal";
+import { HealthOnboardingModal } from "@/features/onboarding/health-onboarding-modal";
+import {
+  getOnboardingStatus,
+  saveNutritionProfile,
+  type NutritionProfile
+} from "@/features/onboarding/onboarding-api";
+import { ProfileReviewBanner } from "@/features/onboarding/profile-review-banner";
 import { SubscriptionModal } from "@/features/subscription/subscription-modal";
 import { SettingsPage } from "@/features/settings/settings-page";
 import type { KitchenOffer, Meal } from "@/lib/data";
 import { calculateNutrition, defaultProfile, initialJournal, mealToEntry } from "@/lib/nutrition";
 import type { JournalEntry, Profile, View } from "@/types/app";
+
+const ACTIVITY_FACTORS = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+  very_active: 1.9
+} as const;
+
+function ageFromBirthDate(value: string) {
+  const birthDate = new Date(`${value}T00:00:00`);
+  const now = new Date();
+  let age = now.getFullYear() - birthDate.getFullYear();
+  if (
+    now.getMonth() < birthDate.getMonth() ||
+    (now.getMonth() === birthDate.getMonth() &&
+      now.getDate() < birthDate.getDate())
+  ) {
+    age -= 1;
+  }
+  return age;
+}
+
+function profileDetails(profile: NutritionProfile): Partial<Profile> {
+  return {
+    gender: profile.gender,
+    age: ageFromBirthDate(profile.birth_date),
+    height: Number(profile.height_cm),
+    weight: Number(profile.weight_kg),
+    activity: ACTIVITY_FACTORS[profile.activity_level],
+    goal:
+      profile.goal === "lose_weight"
+        ? "lose"
+        : profile.goal === "gain_muscle"
+          ? "gain"
+          : "maintain",
+    allergies: profile.food_allergies.join(", ") || "Không có"
+  };
+}
 
 export function NutriPlanApp() {
   const [view, setView] = useState<View>("home");
@@ -32,6 +77,10 @@ export function NutriPlanApp() {
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<KitchenOffer | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [nutritionProfile, setNutritionProfile] = useState<NutritionProfile | null>(null);
+  const [onboardingRequired, setOnboardingRequired] = useState(false);
+  const [profileReviewDue, setProfileReviewDue] = useState(false);
+  const [reviewDismissed, setReviewDismissed] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [imageOpen, setImageOpen] = useState(false);
   const [toast, setToast] = useState("");
@@ -63,6 +112,30 @@ export function NutriPlanApp() {
       window.history.replaceState({}, "", window.location.pathname);
     }
     setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getOnboardingStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setNutritionProfile(status.profile);
+        setOnboardingRequired(!status.hasProfile);
+        setProfileReviewDue(status.reviewDue && status.hasProfile);
+        if (!status.hasProfile) setProfileOpen(true);
+        if (status.profile) {
+          setProfile((current) => ({
+            ...current,
+            ...profileDetails(status.profile!)
+          }));
+        }
+      })
+      .catch(() => {
+        // Không khóa ứng dụng khi backend tạm thời không sẵn sàng.
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -199,6 +272,12 @@ export function NutriPlanApp() {
         onOpenProfile={() => setProfileOpen(true)}
         onSubscribe={() => setSubscribeOpen(true)}
       >
+        {profileReviewDue && !reviewDismissed && (
+          <ProfileReviewBanner
+            onReview={() => setProfileOpen(true)}
+            onDismiss={() => setReviewDismissed(true)}
+          />
+        )}
         {view === "home" && (
           <DashboardPage
             profile={profile}
@@ -272,55 +351,20 @@ export function NutriPlanApp() {
         />
       )}
       {profileOpen && (
-        <ProfileModal
-          value={profile}
+        <HealthOnboardingModal
+          current={nutritionProfile}
+          required={onboardingRequired}
           onClose={() => setProfileOpen(false)}
-          onSave={async (next) => {
-            const activityLevel =
-              next.activity <= 1.2
-                ? "sedentary"
-                : next.activity <= 1.375
-                  ? "light"
-                  : next.activity <= 1.55
-                    ? "moderate"
-                    : next.activity <= 1.725
-                      ? "active"
-                      : "very_active";
-            const goal =
-              next.goal === "lose"
-                ? "lose_weight"
-                : next.goal === "gain"
-                  ? "gain_muscle"
-                  : "maintain";
-            const response = await fetch("/api/nutrition-profiles", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                gender: next.gender,
-                birthDate: `${new Date().getFullYear() - next.age}-01-01`,
-                heightCm: next.height,
-                weightKg: next.weight,
-                activityLevel,
-                goal,
-                dietaryPreferences: [],
-                dislikedIngredients: next.allergies
-                  .split(",")
-                  .map((value) => value.trim())
-                  .filter(Boolean)
-              })
-            });
-            const payload: unknown = await response.json().catch(() => null);
-            if (!response.ok) {
-              const message =
-                payload &&
-                typeof payload === "object" &&
-                "message" in payload &&
-                typeof payload.message === "string"
-                  ? payload.message
-                  : "Không thể lưu hồ sơ dinh dưỡng.";
-              throw new Error(message);
-            }
-            setProfile(next);
+          onSave={async (input) => {
+            const savedProfile = await saveNutritionProfile(input);
+            setNutritionProfile(savedProfile);
+            setProfile((current) => ({
+              ...current,
+              ...profileDetails(savedProfile)
+            }));
+            setOnboardingRequired(false);
+            setProfileReviewDue(false);
+            setReviewDismissed(false);
             setMenuRevision((current) => current + 1);
             setProfileOpen(false);
             setToast("Hồ sơ đã lưu. Thực đơn sẽ được tính lại theo mục tiêu mới.");

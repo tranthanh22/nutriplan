@@ -23,6 +23,7 @@ import {
   type AiHealthInsight,
   type AiInsightResponse
 } from "./ai-insights-api";
+import { DailyWellnessCheckin } from "./daily-wellness-checkin";
 
 function formatDate(value?: string | null) {
   if (!value) return "Chưa có thời điểm tạo";
@@ -43,6 +44,16 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
   const [insight, setInsight] = useState<AiInsightResponse | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [dailyCheckinComplete, setDailyCheckinComplete] = useState(false);
+
+  const updateDailyCheckinStatus = useCallback((completed: boolean) => {
+    setDailyCheckinComplete(completed);
+  }, []);
+
+  const dailyCheckinSaved = useCallback(() => {
+    setInsight(null);
+    setNotice("Đã lưu check-in hôm nay. AI Insight tiếp theo sẽ dùng các câu trả lời mới này.");
+  }, []);
 
   const loadLatest = useCallback(async (quiet = false) => {
     setLoading(true);
@@ -119,7 +130,7 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
         <div className="insight-login-card">
           <div className="insight-icon-box"><LogIn size={19} /></div>
           <div className="insight-login-card__copy"><h3>Đăng nhập để nhận AI Insight</h3><p>Phiên đăng nhập được lưu bằng cookie an toàn. Bạn không cần dán hoặc nhìn thấy access token.</p></div>
-          <Link className="button button--dark" href="/login?next=/"><LogIn size={17} /> Đăng nhập</Link>
+          <Link className="button button--dark" href="/login?next=/app"><LogIn size={17} /> Đăng nhập</Link>
         </div>
       )}
 
@@ -128,12 +139,26 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
       {notice && <div className="insight-alert"><ShieldCheck size={19} /><div><strong>Trạng thái</strong><span>{notice}</span></div></div>}
 
       {user && (
-        <div className="insight-action-card insight-action-card--controls">
-          <div className="insight-action-card__buttons">
-            <button className="button button--outline" disabled={loading} onClick={() => void loadLatest()}><RefreshCw size={17} className={loading ? "spin" : ""} /> Làm mới</button>
-            <button className="button button--dark" disabled={loading} onClick={() => void createInsight()}>{loading ? <LoaderCircle size={17} className="spin" /> : <BrainCircuit size={17} />}{loading ? "Đang phân tích..." : "Nhận AI Insight"}</button>
+        <>
+          <DailyWellnessCheckin
+            onStatusChange={updateDailyCheckinStatus}
+            onSaved={dailyCheckinSaved}
+          />
+          <div className="insight-action-card insight-action-card--controls">
+            <div>
+              <strong>Insight theo trạng thái hôm nay</strong>
+              <small>
+                {dailyCheckinComplete
+                  ? "Check-in đã sẵn sàng để phân tích cùng hồ sơ dinh dưỡng."
+                  : "Hãy hoàn tất check-in phía trên trước khi yêu cầu AI phân tích."}
+              </small>
+            </div>
+            <div className="insight-action-card__buttons">
+              <button className="button button--outline" disabled={loading} onClick={() => void loadLatest()}><RefreshCw size={17} className={loading ? "spin" : ""} /> Làm mới</button>
+              <button className="button button--dark" disabled={loading || !dailyCheckinComplete} onClick={() => void createInsight()}>{loading ? <LoaderCircle size={17} className="spin" /> : <BrainCircuit size={17} />}{loading ? "Đang phân tích..." : "Nhận Insight hôm nay"}</button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {insight?.status === "processing" && <div className="insight-processing"><LoaderCircle className="spin" size={22} /><div><strong>AI đang xử lý insight</strong><span>Thử làm mới lại sau {insight.retryAfterSeconds ?? 3} giây.</span></div></div>}

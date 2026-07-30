@@ -19,9 +19,12 @@ const profile: NutritionProfileRecord = {
   height_cm: 170,
   weight_kg: 70,
   activity_level: 'moderate',
+  activity_days_per_week: 4,
   goal: 'maintain',
   dietary_preferences: [],
   disliked_ingredients: [],
+  food_allergies: [],
+  food_intolerances: [],
   medical_notes: null,
   bmr_kcal: 1650,
   tdee_kcal: 2557.5,
@@ -63,6 +66,7 @@ describe('AiInsightsService', () => {
       { getAdminClient: () => ({ from: () => query }) } as never,
       { getCurrent: jest.fn().mockResolvedValue(profile) } as never,
       { hasActive: jest.fn() } as never,
+      { getToday: jest.fn().mockResolvedValue(null) } as never,
       provider,
     );
 
@@ -85,6 +89,7 @@ describe('AiInsightsService', () => {
       { getAdminClient: jest.fn() } as never,
       { getCurrent: jest.fn().mockResolvedValue({ ...profile, bmr_kcal: 200 }) } as never,
       { hasActive: jest.fn() } as never,
+      { getToday: jest.fn().mockResolvedValue(null) } as never,
       provider,
     );
 

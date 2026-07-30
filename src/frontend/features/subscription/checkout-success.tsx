@@ -48,7 +48,7 @@ export function CheckoutSuccess({ sessionId }: { sessionId: string }) {
 
   const enterApp = useCallback(() => {
     window.sessionStorage.setItem("nutriplan-checkout-confirmed", "true");
-    window.location.replace("/?checkout=success");
+    window.location.replace("/app?checkout=success");
   }, []);
 
   const verify = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -119,7 +119,7 @@ export function CheckoutSuccess({ sessionId }: { sessionId: string }) {
 
   return (
     <main className="checkout-result-page">
-      <Link className="checkout-result-brand" href="/">
+      <Link className="checkout-result-brand" href="/app">
         <span><Leaf size={21} /></span> NutriPlan
       </Link>
 

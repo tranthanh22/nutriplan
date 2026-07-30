@@ -80,7 +80,9 @@ export function SubscriptionModal({ onClose }: { onClose: () => void }) {
       });
       const payload: unknown = await response.json().catch(() => null);
       if (response.status === 401) {
-        window.location.assign("/login?next=/");
+        window.location.assign(
+          `/login?next=${encodeURIComponent("/app")}`
+        );
         return;
       }
       if (!response.ok) throw new Error(readError(payload));
@@ -90,7 +92,7 @@ export function SubscriptionModal({ onClose }: { onClose: () => void }) {
         "status" in payload &&
         payload.status === "already_paid"
       ) {
-        window.location.assign("/?checkout=success");
+        window.location.assign("/app?checkout=success");
         return;
       }
       if (!payload || typeof payload !== "object" || !("checkoutUrl" in payload) || typeof payload.checkoutUrl !== "string") {

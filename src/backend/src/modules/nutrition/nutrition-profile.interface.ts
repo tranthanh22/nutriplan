@@ -7,9 +7,12 @@ export interface NutritionProfileRecord {
   height_cm: number | string;
   weight_kg: number | string;
   activity_level: string;
+  activity_days_per_week: number;
   goal: string;
   dietary_preferences: string[];
   disliked_ingredients: string[];
+  food_allergies: string[];
+  food_intolerances: string[];
   medical_notes: string | null;
   bmr_kcal: number | string;
   tdee_kcal: number | string;

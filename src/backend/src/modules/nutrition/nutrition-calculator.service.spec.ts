@@ -16,9 +16,12 @@ describe('NutritionCalculatorService', () => {
     heightCm: 170,
     weightKg: 70,
     activityLevel: ActivityLevel.Moderate,
+    activityDaysPerWeek: 4,
     goal: NutritionGoal.Maintain,
     dietaryPreferences: [],
     dislikedIngredients: [],
+    foodAllergies: [],
+    foodIntolerances: [],
   };
 
   it('calculates positive BMR, TDEE and macro targets', () => {

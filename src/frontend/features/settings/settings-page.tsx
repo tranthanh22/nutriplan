@@ -7,12 +7,14 @@ import {
   CreditCard,
   ExternalLink,
   LoaderCircle,
+  LogOut,
   Save,
   Settings2,
   ShieldCheck,
   Sparkles
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   createBillingPortal,
   getCurrentSubscription,
@@ -43,6 +45,7 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
@@ -114,11 +117,35 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
       window.location.assign(result.url);
     } catch (requestError) {
       if (requestError instanceof SettingsApiError && requestError.status === 401) {
-        window.location.assign("/login?next=/");
+        window.location.assign(
+          `/login?next=${encodeURIComponent("/app?settings=billing")}`
+        );
         return;
       }
       setError(readError(requestError));
       setOpeningPortal(false);
+    }
+  }
+
+  async function signOut() {
+    setSigningOut(true);
+    setError("");
+
+    try {
+      const supabase = createClient();
+      const { error: signOutError } = await supabase.auth.signOut({
+        scope: "local"
+      });
+
+      if (signOutError) throw signOutError;
+      window.location.replace("/");
+    } catch (signOutError) {
+      setError(
+        signOutError instanceof Error
+          ? signOutError.message
+          : "Không thể đăng xuất. Vui lòng thử lại."
+      );
+      setSigningOut(false);
     }
   }
 
@@ -230,13 +257,32 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
               <small className="settings-test-mode">Stripe Test mode · không thu tiền thật</small>
             )}
           </section>
+
+          <section className="settings-card settings-card--account">
+            <div className="settings-card__head">
+              <span><LogOut size={20} /></span>
+              <div>
+                <h2>Đăng xuất</h2>
+                <p>Kết thúc phiên NutriPlan trên thiết bị này. Các thiết bị khác vẫn được giữ đăng nhập.</p>
+              </div>
+            </div>
+            <button
+              className="button button--outline settings-logout-button"
+              disabled={signingOut}
+              onClick={() => void signOut()}
+              type="button"
+            >
+              {signingOut ? <LoaderCircle className="spin" size={17} /> : <LogOut size={17} />}
+              {signingOut ? "Đang đăng xuất…" : "Đăng xuất"}
+            </button>
+          </section>
         </div>
       )}
 
       {error && (
         <div className="settings-error">
           <span>{error}</span>
-          {needsLogin && <Link href="/login?next=/">Đăng nhập</Link>}
+          {needsLogin && <Link href="/login?next=/app">Đăng nhập</Link>}
         </div>
       )}
     </div>

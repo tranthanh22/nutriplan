@@ -1,4 +1,5 @@
 import type { Meal } from "@/lib/data";
+import { resolveFigmaMealImage } from "@/lib/figma-assets";
 import type { JournalEntry } from "@/types/app";
 import type {
   BackendJournalEntry,
@@ -6,9 +7,6 @@ import type {
   PersonalMealItem,
   ReplacementCandidate
 } from "./meal-plan-types";
-
-const fallbackMealImage =
-  "https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1200&q=85";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -76,7 +74,7 @@ export function personalMealItemToMeal(item: PersonalMealItem): Meal {
     id: item.dishes.id,
     name: item.dishes.name,
     subtitle: item.dishes.short_description ?? "Món trong kế hoạch cá nhân",
-    image: item.dishes.image_path ?? fallbackMealImage,
+    image: resolveFigmaMealImage(item.dishes.name, item.dishes.image_path),
     calories: Math.round(Number(item.calories_kcal)),
     protein: Math.round(Number(item.protein_g)),
     carbs: Math.round(Number(item.carbs_g)),

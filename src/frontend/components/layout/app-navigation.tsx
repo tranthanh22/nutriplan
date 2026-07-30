@@ -16,6 +16,7 @@ import {
   Leaf,
   LogIn,
   Menu,
+  Search,
   Settings,
   Sparkles
 } from "lucide-react";
@@ -54,6 +55,22 @@ export function AppNavigation({
   onSubscribe: () => void;
 }) {
   const [signedIn, setSignedIn] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const submitSearch = () => {
+    const query = searchQuery.trim().toLocaleLowerCase("vi");
+    if (!query) return;
+    if (query.includes("bếp") || query.includes("gói ăn")) {
+      onNavigate("kitchens");
+    } else if (query.includes("nhật ký") || query.includes("đã ăn")) {
+      onNavigate("journal");
+    } else if (query.includes("cài đặt") || query.includes("thanh toán")) {
+      onNavigate("settings");
+    } else {
+      onNavigate("plan");
+    }
+    setSearchQuery("");
+  };
 
   useEffect(() => {
     let active = true;
@@ -109,7 +126,24 @@ export function AppNavigation({
       <main className="main-area">
         <header className="topbar">
           <button className="icon-button topbar__menu" aria-label="Mở menu" onClick={onOpenMobile}><Menu size={21} /></button>
-          <div className="topbar__crumb"><span>NutriPlan</span><span>/</span><strong>{viewLabels[view]}</strong></div>
+          <div className="topbar__context">
+            <div className="topbar__crumb"><span>NutriPlan</span><span>/</span><strong>{viewLabels[view]}</strong></div>
+            <form
+              className="topbar-search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitSearch();
+              }}
+            >
+              <Search size={16} />
+              <input
+                aria-label="Tìm nhanh trong NutriPlan"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Tìm thực đơn, bếp, thanh toán..."
+              />
+            </form>
+          </div>
           <div className="topbar__actions">
             <button className="icon-button" aria-label="Thông báo"><Bell size={19} /><span className="notification-dot" /></button>
             {signedIn ? (

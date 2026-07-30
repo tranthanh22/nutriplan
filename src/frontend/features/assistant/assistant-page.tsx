@@ -258,7 +258,7 @@ export function AssistantPage() {
               <div className="assistant-error">
                 <AlertTriangle size={17} />
                 <span>{error}</span>
-                {needsLogin && <Link href="/login?next=/">Đăng nhập</Link>}
+                {needsLogin && <Link href="/login?next=/app">Đăng nhập</Link>}
               </div>
             )}
             <form className="assistant-composer" onSubmit={handleSubmit}>

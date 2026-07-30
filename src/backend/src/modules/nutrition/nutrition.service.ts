@@ -28,6 +28,37 @@ export class NutritionService {
     return data as NutritionProfileRecord;
   }
 
+  async getStatus(user: AuthUser) {
+    const { data, error } = await this.supabase
+      .createUserClient(user.accessToken)
+      .from('nutrition_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_current', true)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!data) {
+      return {
+        hasProfile: false,
+        reviewDue: true,
+        nextReviewAt: null,
+        profile: null,
+      };
+    }
+
+    const profile = data as NutritionProfileRecord;
+    const lastUpdatedAt = profile.calculated_at ?? profile.created_at;
+    const nextReviewAt = new Date(
+      new Date(lastUpdatedAt).getTime() + 7 * 24 * 60 * 60 * 1000,
+    );
+    return {
+      hasProfile: true,
+      reviewDue: nextReviewAt.getTime() <= Date.now(),
+      nextReviewAt: nextReviewAt.toISOString(),
+      profile,
+    };
+  }
+
   async getVersions(user: AuthUser): Promise<NutritionProfileRecord[]> {
     const { data, error } = await this.supabase
       .createUserClient(user.accessToken)
@@ -60,9 +91,12 @@ export class NutritionService {
         p_height_cm: dto.heightCm,
         p_weight_kg: dto.weightKg,
         p_activity_level: dto.activityLevel,
+        p_activity_days_per_week: dto.activityDaysPerWeek,
         p_goal: dto.goal,
         p_dietary_preferences: dto.dietaryPreferences,
         p_disliked_ingredients: dto.dislikedIngredients,
+        p_food_allergies: dto.foodAllergies,
+        p_food_intolerances: dto.foodIntolerances,
         p_medical_notes: dto.medicalNotes ?? null,
         p_bmr_kcal: result.bmrKcal,
         p_tdee_kcal: result.tdeeKcal,

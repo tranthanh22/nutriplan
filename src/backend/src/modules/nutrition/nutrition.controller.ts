@@ -29,6 +29,12 @@ export class NutritionController {
     return this.nutrition.getCurrent(user);
   }
 
+  @Get('status')
+  @ApiOperation({ summary: 'Kiểm tra onboarding và hạn cập nhật hồ sơ 7 ngày' })
+  status(@CurrentUser() user: AuthUser) {
+    return this.nutrition.getStatus(user);
+  }
+
   @Get('versions')
   @ApiOperation({ summary: 'Lấy lịch sử các phiên bản hồ sơ dinh dưỡng' })
   versions(@CurrentUser() user: AuthUser) {

@@ -7,9 +7,12 @@ export const AiHealthInputSchema = z
     height_cm: z.number().min(80).max(250),
     weight_kg: z.number().min(20).max(400),
     activity_level: z.enum(['sedentary', 'light', 'moderate', 'active', 'very_active']),
+    activity_days_per_week: z.number().int().min(0).max(7),
     goal: z.enum(['lose_weight', 'maintain', 'gain_muscle']),
     dietary_preferences: z.array(z.string().max(100)).max(20),
     disliked_ingredients: z.array(z.string().max(100)).max(50),
+    food_allergies: z.array(z.string().max(100)).max(30),
+    food_intolerances: z.array(z.string().max(100)).max(30),
     bmr_kcal: z.number().min(500).max(5000),
     tdee_kcal: z.number().min(600).max(10000),
     target_calories_kcal: z.number().min(1200).max(10000),
@@ -17,6 +20,29 @@ export const AiHealthInputSchema = z
     target_carbs_g: z.number().min(0).max(1000),
     target_fat_g: z.number().min(0).max(500),
     formula_version: z.string().min(1).max(100),
+    daily_context: z
+      .object({
+        checkin_date: z.string().date(),
+        activity_type: z.enum([
+          'rest',
+          'walking',
+          'cardio',
+          'strength',
+          'sport',
+          'mixed',
+        ]),
+        activity_minutes: z.number().int().min(0).max(600),
+        activity_intensity: z.enum(['rest', 'light', 'moderate', 'high']),
+        fatigue_level: z.number().int().min(1).max(5),
+        energy_level: z.number().int().min(1).max(5),
+        sleep_hours: z.number().min(0).max(24),
+        sleep_quality: z.number().int().min(1).max(5),
+        stress_level: z.number().int().min(1).max(5),
+        mood: z.enum(['very_low', 'low', 'neutral', 'good', 'very_good']),
+        water_liters: z.number().min(0).max(10).nullable(),
+        symptoms: z.array(z.string().max(100)).max(12),
+      })
+      .nullable(),
   })
   .superRefine((input, context) => {
     if (input.tdee_kcal < input.bmr_kcal) {

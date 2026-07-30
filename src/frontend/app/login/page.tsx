@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 function safeNextPath(value?: string) {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
+  return value?.startsWith("/") && !value.startsWith("//") ? value : "/app";
 }
 
 export default async function LoginPage({ searchParams }: { searchParams?: { next?: string } }) {

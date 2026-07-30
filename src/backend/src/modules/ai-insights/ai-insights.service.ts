@@ -11,13 +11,15 @@ import { SupabaseService } from '../../database/supabase.service';
 import { NutritionService } from '../nutrition/nutrition.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import type { NutritionProfileRecord } from '../nutrition/nutrition-profile.interface';
+import type { DailyWellnessRecord } from '../wellness/wellness.service';
+import { WellnessService } from '../wellness/wellness.service';
 import { AiHealthInputSchema } from './ai-health-input.schema';
 import {
   HEALTH_INSIGHT_PROVIDER,
   type HealthInsightProvider,
 } from './health-insight-provider.interface';
 
-const PROMPT_VERSION = 'health-insight-v2-gemini';
+const PROMPT_VERSION = 'health-insight-v3-daily-wellness';
 
 interface AiInsightRecord {
   id: string;
@@ -34,6 +36,7 @@ export class AiInsightsService {
     private readonly supabase: SupabaseService,
     private readonly nutrition: NutritionService,
     private readonly subscriptions: SubscriptionsService,
+    private readonly wellness: WellnessService,
     @Inject(HEALTH_INSIGHT_PROVIDER)
     private readonly provider: HealthInsightProvider,
   ) {}
@@ -47,7 +50,8 @@ export class AiInsightsService {
 
   async generate(user: AuthUser) {
     const profile = await this.nutrition.getCurrent(user);
-    const input = this.buildMinimalInput(profile);
+    const dailyCheckin = await this.wellness.getToday(user);
+    const input = this.buildMinimalInput(profile, dailyCheckin);
     const inputFingerprint = this.hash(JSON.stringify(input));
     const existing = await this.findExisting(profile.id, inputFingerprint);
     if (existing?.status === 'completed') return this.present(user, existing);
@@ -195,7 +199,10 @@ export class AiInsightsService {
     return data as AiInsightRecord | null;
   }
 
-  private buildMinimalInput(profile: NutritionProfileRecord) {
+  private buildMinimalInput(
+    profile: NutritionProfileRecord,
+    dailyCheckin: DailyWellnessRecord | null,
+  ) {
     const birthDate = new Date(`${String(profile.birth_date)}T00:00:00.000Z`);
     const now = new Date();
     let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
@@ -212,9 +219,12 @@ export class AiInsightsService {
       height_cm: Number(profile.height_cm),
       weight_kg: Number(profile.weight_kg),
       activity_level: profile.activity_level,
+      activity_days_per_week: Number(profile.activity_days_per_week ?? 0),
       goal: profile.goal,
       dietary_preferences: profile.dietary_preferences,
       disliked_ingredients: profile.disliked_ingredients,
+      food_allergies: profile.food_allergies ?? [],
+      food_intolerances: profile.food_intolerances ?? [],
       bmr_kcal: Number(profile.bmr_kcal),
       tdee_kcal: Number(profile.tdee_kcal),
       target_calories_kcal: Number(profile.target_calories_kcal),
@@ -222,6 +232,25 @@ export class AiInsightsService {
       target_carbs_g: Number(profile.target_carbs_g),
       target_fat_g: Number(profile.target_fat_g),
       formula_version: profile.formula_version,
+      daily_context: dailyCheckin
+        ? {
+            checkin_date: dailyCheckin.checkin_date,
+            activity_type: dailyCheckin.activity_type,
+            activity_minutes: Number(dailyCheckin.activity_minutes),
+            activity_intensity: dailyCheckin.activity_intensity,
+            fatigue_level: Number(dailyCheckin.fatigue_level),
+            energy_level: Number(dailyCheckin.energy_level),
+            sleep_hours: Number(dailyCheckin.sleep_hours),
+            sleep_quality: Number(dailyCheckin.sleep_quality),
+            stress_level: Number(dailyCheckin.stress_level),
+            mood: dailyCheckin.mood,
+            water_liters:
+              dailyCheckin.water_liters === null
+                ? null
+                : Number(dailyCheckin.water_liters),
+            symptoms: dailyCheckin.symptoms ?? [],
+          }
+        : null,
     });
     if (!parsed.success) {
       throw new BadRequestException({

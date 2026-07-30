@@ -18,6 +18,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { WellnessModule } from './modules/wellness/wellness.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     KitchensModule,
     OrdersModule,
     PaymentsModule,
+    WellnessModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: SupabaseAuthGuard },

@@ -55,6 +55,12 @@ export class CreateNutritionProfileDto {
   @IsEnum(ActivityLevel)
   activityLevel: ActivityLevel;
 
+  @ApiProperty({ minimum: 0, maximum: 7, description: 'Số ngày vận động mỗi tuần' })
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Min(0)
+  @Max(7)
+  activityDaysPerWeek: number;
+
   @ApiProperty({ enum: NutritionGoal })
   @IsEnum(NutritionGoal)
   goal: NutritionGoal;
@@ -70,6 +76,18 @@ export class CreateNutritionProfileDto {
   @IsArray()
   @IsString({ each: true })
   dislikedIngredients: string[] = [];
+
+  @ApiPropertyOptional({ type: [String], description: 'Dị ứng thực phẩm đã biết' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  foodAllergies: string[] = [];
+
+  @ApiPropertyOptional({ type: [String], description: 'Thực phẩm không dung nạp/không ăn được' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  foodIntolerances: string[] = [];
 
   @ApiPropertyOptional({ description: 'Chỉ lưu ghi chú; MVP không dùng để chẩn đoán.' })
   @IsOptional()

@@ -59,6 +59,7 @@ Desktop.ini
 # Temporary files
 *.tmp
 *.temp
+figma-export.zip
 .cache/
 tmp/
 temp/

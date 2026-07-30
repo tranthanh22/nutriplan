@@ -12,12 +12,13 @@ export function Modal({
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
+        aria-modal="true"
         className={`modal ${wide ? "modal--wide" : ""}`}
         onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
       >
         {children}
       </div>
     </div>
   );
 }
-

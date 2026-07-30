@@ -50,7 +50,7 @@ const offerSeeds: OfferSeed[] = [
   {
     id: "lean-lab-cut-30", kitchen: "Lean Lab", title: "Lean Cut · 30 ngày",
     description: "Hai bữa chính mỗi ngày cho mục tiêu giảm mỡ bền vững.",
-    image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=85",
+    image: "/images/figma/chicken-vegetable-bowl.jpg",
     rating: 4.9, reviews: 248, price: 3290000, oldPrice: 3690000, calories: 1250, protein: 105, carbs: 128, fat: 36,
     delivery: "2 lần/ngày · Miễn phí 5 km", badge: "Giảm mỡ", type: "Gói 30 ngày", durationDays: 30, mealsPerDay: 2,
     location: "Quận Bình Thạnh", distanceKm: 3.2, dietTypes: ["Giảm mỡ", "Giàu protein", "Ít dầu"],
@@ -60,7 +60,7 @@ const offerSeeds: OfferSeed[] = [
   {
     id: "an-lanh-vegan-7", kitchen: "An Lành Vegan", title: "Plant Power · 7 ngày",
     description: "Thực đơn thuần chay đủ đạm từ đậu, nấm và ngũ cốc nguyên hạt.",
-    image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=85",
+    image: "/images/figma/chicken-salad.jpg",
     rating: 4.7, reviews: 96, price: 799000, calories: 1450, protein: 62, carbs: 188, fat: 48,
     delivery: "06:30–07:30 · 11:00–12:00", badge: "Thuần chay", type: "Gói 7 ngày", durationDays: 7, mealsPerDay: 2,
     location: "Quận 7", distanceKm: 5.1, dietTypes: ["Thuần chay", "Nhiều chất xơ"],
@@ -70,7 +70,7 @@ const offerSeeds: OfferSeed[] = [
   {
     id: "keto-house-30", kitchen: "Keto House", title: "Keto Reset · 30 ngày",
     description: "Thực đơn low-carb kiểm soát tinh bột, ưu tiên chất béo tốt.",
-    image: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=85",
+    image: "/images/figma/auth-healthy-food.jpg",
     rating: 4.8, reviews: 175, price: 3890000, oldPrice: 4250000, calories: 1550, protein: 110, carbs: 42, fat: 105,
     delivery: "Giao một lần trước 10:30", badge: "Low-carb", type: "Gói 30 ngày", durationDays: 30, mealsPerDay: 2,
     location: "Quận 2", distanceKm: 4.7, dietTypes: ["Keto", "Low-carb", "Không đường"],
@@ -80,7 +80,7 @@ const offerSeeds: OfferSeed[] = [
   {
     id: "mom-kitchen-single", kitchen: "Mom's Healthy Kitchen", title: "Cá thu Nhật sốt cà & rau luộc",
     description: "Bữa cơm nhà ít muối với cá thu, gạo lứt và rau theo mùa.",
-    image: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=1200&q=85",
+    image: "/images/figma/grilled-salmon.jpg",
     rating: 4.6, reviews: 73, price: 79000, calories: 560, protein: 36, carbs: 58, fat: 21,
     delivery: "40–55 phút", badge: "Cơm nhà", type: "Món lẻ", durationDays: 1, mealsPerDay: 1,
     location: "Quận 5", distanceKm: 3.9, dietTypes: ["Cân bằng", "Ít muối"],
@@ -130,7 +130,7 @@ const offerSeeds: OfferSeed[] = [
   {
     id: "eat-clean-120", kitchen: "Eat Clean Sài Gòn", title: "Lifestyle 120",
     description: "Gói duy trì thói quen bốn tháng với thực đơn luân phiên 28 ngày.",
-    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=85",
+    image: "/images/figma/healthy-meal-spread.jpg",
     rating: 4.8, reviews: 267, price: 12900000, oldPrice: 14800000, calories: 1750, protein: 112, carbs: 190, fat: 55,
     delivery: "2 chuyến/ngày · Nghỉ Chủ nhật", badge: "Giá tốt dài hạn", type: "Gói 120 ngày", durationDays: 120, mealsPerDay: 2,
     location: "Quận Tân Bình", distanceKm: 6.2, dietTypes: ["Eat clean", "Cân bằng"],
@@ -200,7 +200,7 @@ const offerSeeds: OfferSeed[] = [
   {
     id: "bep-bien-single", kitchen: "Bếp Biển Xanh", title: "Cá hồi áp chảo sốt chanh",
     description: "Cá hồi, khoai tây bi và salad theo mùa giàu omega-3.",
-    image: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=1200&q=85",
+    image: "/images/figma/grilled-salmon.jpg",
     rating: 4.7, reviews: 121, price: 119000, calories: 536, protein: 38, carbs: 32, fat: 29,
     delivery: "40–50 phút", badge: "Omega-3", type: "Món lẻ", durationDays: 1, mealsPerDay: 1,
     location: "Quận 8", distanceKm: 7.6, dietTypes: ["Pescatarian", "Low-carb"],
@@ -210,7 +210,7 @@ const offerSeeds: OfferSeed[] = [
   {
     id: "gluten-free-7", kitchen: "Free From Kitchen", title: "Gluten-Free Week",
     description: "Gói không gluten với nguyên liệu và khu sơ chế được tách riêng.",
-    image: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=85",
+    image: "/images/figma/auth-healthy-food.jpg",
     rating: 4.8, reviews: 79, price: 1690000, calories: 1550, protein: 88, carbs: 166, fat: 59,
     delivery: "07:00–08:00 · 11:00–12:00", badge: "Không gluten", type: "Gói 7 ngày", durationDays: 7, mealsPerDay: 3,
     location: "Quận Bình Thạnh", distanceKm: 3.6, dietTypes: ["Không gluten", "Cân bằng"],

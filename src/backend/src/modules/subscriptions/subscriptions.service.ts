@@ -225,7 +225,7 @@ export class SubscriptionsService {
             planCode: String(checkout.plan_code),
           },
           success_url: `${frontendUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${frontendUrl}/?checkout=cancelled`,
+          cancel_url: `${frontendUrl}/app?checkout=cancelled`,
           expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         },
         { idempotencyKey: `${checkout.payment_id}:checkout:${attempt}` },

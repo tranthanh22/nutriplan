@@ -247,7 +247,7 @@ export function AssistantWidget() {
               <div className="assistant-widget__error">
                 <AlertTriangle size={15} />
                 <span>{error}</span>
-                {needsLogin && <Link href="/login?next=/">Đăng nhập</Link>}
+                {needsLogin && <Link href="/login?next=/app">Đăng nhập</Link>}
               </div>
             )}
             <form onSubmit={handleSubmit}>

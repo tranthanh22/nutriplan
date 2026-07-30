@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, Eye, EyeOff, Leaf, LoaderCircle, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
@@ -45,19 +46,22 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
   return (
     <main className="login-page">
       <section className="login-showcase" aria-label="Giới thiệu NutriPlan">
+        <Image
+          className="login-showcase__image"
+          src="/images/figma/auth-healthy-food.jpg"
+          alt=""
+          fill
+          priority
+          sizes="50vw"
+        />
+        <span className="login-showcase__veil" />
         <Link className="login-brand" href="/"><span><Leaf size={22} /></span>NutriPlan</Link>
-        <div className="login-showcase__content">
-          <span className="login-kicker">DINH DƯỠNG CÁ NHÂN HÓA</span>
-          <h1>Ăn đúng mục tiêu,<br />nhẹ đầu mỗi ngày.</h1>
-          <p>Kế hoạch thực tế dựa trên dữ liệu sức khỏe, món ăn phù hợp và tiến độ của riêng bạn.</p>
-          <div className="login-trust"><ShieldCheck size={20} /><div><strong>Phiên đăng nhập an toàn</strong><span>Token được quản lý bằng cookie; bạn không cần sao chép hoặc dán mã truy cập.</span></div></div>
-        </div>
         <small>NutriPlan hỗ trợ lập kế hoạch, không thay thế tư vấn y khoa.</small>
       </section>
 
       <section className="login-panel">
         <div className="login-card">
-          <Link className="login-back" href="/"><ArrowLeft size={16} /> Về trang tổng quan</Link>
+          <Link className="login-back" href="/"><ArrowLeft size={16} /> Về trang giới thiệu</Link>
           <div className="login-card__heading"><span className="login-card__icon"><LockKeyhole size={22} /></span><h2>Chào mừng trở lại</h2><p>Đăng nhập để tiếp tục với kế hoạch của bạn.</p></div>
 
           <form className="login-form" onSubmit={(event) => void submit(event)}>
@@ -70,7 +74,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
             {error && <div className="login-error" role="alert"><AlertCircle size={17} /><span>{error}</span></div>}
             <button className="button button--dark button--full login-submit" type="submit" disabled={loading}>{loading ? <LoaderCircle className="spin" size={18} /> : <LockKeyhole size={18} />}{loading ? "Đang đăng nhập…" : "Đăng nhập"}</button>
           </form>
-          <p className="login-help">Chưa có tài khoản? Tạo người dùng trong Supabase Auth cho bản MVP.</p>
+          <p className="login-help">Chưa có tài khoản? <Link href="/register">Đăng ký miễn phí</Link></p>
         </div>
       </section>
     </main>

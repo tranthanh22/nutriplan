@@ -1,19 +1,23 @@
 "use client";
 
+import Image from "next/image";
 import {
+  Activity,
   AlertCircle,
   ArrowRight,
-  Camera,
+  CalendarDays,
+  CheckCircle2,
   ChefHat,
   Flame,
   LoaderCircle,
   RefreshCw,
   Sparkles,
-  Target
+  Target,
+  TrendingDown
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MealCard } from "@/components/shared/meal-card";
-import { MacroRow, Metric, ProgressRing } from "@/components/ui/nutrition-widgets";
+import { MacroRow } from "@/components/ui/nutrition-widgets";
 import { AiInsightDashboardCard } from "@/features/ai-insights/ai-insights-page";
 import {
   getMyMenus,
@@ -21,7 +25,12 @@ import {
 } from "@/features/meal-plan/meal-plan-api";
 import type { MyMenusResponse } from "@/features/meal-plan/meal-plan-types";
 import type { Meal } from "@/lib/data";
-import type { ConsumedNutrition, NutritionSummary, Profile, View } from "@/types/app";
+import type {
+  ConsumedNutrition,
+  NutritionSummary,
+  Profile,
+  View
+} from "@/types/app";
 
 const mealLabels = {
   breakfast: "Sáng",
@@ -30,11 +39,19 @@ const mealLabels = {
   snack: "Bữa phụ"
 } as const;
 
+const weightTrend = [64.1, 63.7, 63.9, 63.2, 62.8, 62.5, 62.1];
+
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
   const day = `${date.getDate()}`.padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function goalLabel(goal: Profile["goal"]) {
+  if (goal === "lose") return "Giảm mỡ lành mạnh";
+  if (goal === "gain") return "Tăng cơ";
+  return "Duy trì cân nặng";
 }
 
 export function DashboardPage({
@@ -61,13 +78,11 @@ export function DashboardPage({
   const [menus, setMenus] = useState<MyMenusResponse | null>(null);
   const [loadingMenus, setLoadingMenus] = useState(true);
   const [menuError, setMenuError] = useState("");
-  const progress = Math.min(100, Math.round((consumed.calories / nutrition.target) * 100));
   const today = localDateKey();
-  const todayLabel = new Intl.DateTimeFormat("vi-VN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long"
-  }).format(new Date());
+  const calorieProgress = Math.min(
+    100,
+    Math.round((consumed.calories / nutrition.target) * 100)
+  );
   const effectiveSubscribed = menus?.subscriptionActive ?? subscribed;
 
   const loadMenus = useCallback(async () => {
@@ -97,76 +112,244 @@ export function DashboardPage({
         .sort((first, second) => first.sequence_no - second.sequence_no),
     [menus, today]
   );
+  const nextItem =
+    todayMeals.find((item) => item.consumption_status !== "eaten") ??
+    todayMeals[0];
+  const nextMeal = nextItem ? personalMealItemToMeal(nextItem) : null;
 
   return (
-    <div className="page-content">
-      <section className="welcome-row">
+    <div className="page-content dashboard-page">
+      <section className="dashboard-welcome">
         <div>
-          <p className="eyebrow">{todayLabel.toUpperCase()}</p>
-          <h1>Chào buổi sáng, {profile.name.split(" ").slice(-1)[0]} <span>👋</span></h1>
-          <p>Một ngày mới để tiến gần hơn tới mục tiêu của bạn.</p>
+          <p className="eyebrow">TỔNG QUAN HÔM NAY</p>
+          <h1>
+            Chào buổi sáng, {profile.name.split(" ").slice(-1)[0]}!{" "}
+            <span aria-hidden="true">👋</span>
+          </h1>
+          <p>
+            Mục tiêu: <strong>{goalLabel(profile.goal)}</strong>
+            {subscribed ? " · Kế hoạch Plus đang hoạt động" : " · Tài khoản miễn phí"}
+          </p>
         </div>
-        <button className="button button--outline" onClick={onEdit}><Target size={18} /> Chỉnh mục tiêu</button>
+        <button className="button button--primary" onClick={() => onGo("plan")}>
+          <CalendarDays size={17} /> Xem thực đơn hôm nay
+        </button>
       </section>
 
-      <section className="hero-grid">
-        <div className="calorie-card">
-          <div className="calorie-card__head">
+      <section className="dashboard-summary-grid">
+        <article className="figma-card dashboard-metrics">
+          <div className="figma-card__heading">
+            <h2>
+              <Activity size={20} /> Chỉ số của bạn
+            </h2>
+            <button className="link-button" onClick={onEdit}>
+              Cập nhật <ArrowRight size={15} />
+            </button>
+          </div>
+          <div className="dashboard-metric-grid">
             <div>
-              <span className="section-kicker">NĂNG LƯỢNG HÔM NAY</span>
-              <h2>{consumed.calories.toLocaleString("vi-VN")} <small>/ {nutrition.target.toLocaleString("vi-VN")} kcal</small></h2>
+              <span>Cân nặng</span>
+              <strong>
+                {profile.weight} <small>kg</small>
+              </strong>
             </div>
-            <span className="status-pill"><span /> Đang đúng kế hoạch</span>
-          </div>
-          <div className="calorie-card__body">
-            <ProgressRing progress={progress} label={`${progress}%`} sublabel="đã nạp" />
-            <div className="macro-stack">
-              <MacroRow label="Protein" value={consumed.protein} target={nutrition.protein} color="var(--coral)" />
-              <MacroRow label="Carbs" value={consumed.carbs} target={nutrition.carbs} color="var(--amber)" />
-              <MacroRow label="Chất béo" value={consumed.fat} target={nutrition.fat} color="var(--mint-dark)" />
+            <div>
+              <span>BMR</span>
+              <strong>
+                {nutrition.bmr} <small>kcal</small>
+              </strong>
+            </div>
+            <div>
+              <span>TDEE</span>
+              <strong>
+                {nutrition.tdee} <small>kcal</small>
+              </strong>
+            </div>
+            <div>
+              <span>Mục tiêu</span>
+              <strong className="is-positive">
+                {nutrition.target} <small>kcal</small>
+              </strong>
             </div>
           </div>
-          <div className="calorie-card__footer">
-            <span><Flame size={16} /> Còn lại <strong>{Math.max(0, nutrition.target - consumed.calories)} kcal</strong></span>
-            <button className="link-button" onClick={() => onGo("journal")}>Xem chi tiết <ArrowRight size={15} /></button>
+          <div className="dashboard-calorie-progress">
+            <div>
+              <span>
+                <Flame size={17} /> Calo hôm nay
+              </span>
+              <strong>
+                {consumed.calories} / {nutrition.target} kcal
+              </strong>
+            </div>
+            <div className="dashboard-progress-track">
+              <span style={{ width: `${calorieProgress}%` }} />
+            </div>
+            <p>
+              Còn lại {Math.max(0, nutrition.target - consumed.calories)} kcal
+              {calorieProgress <= 100
+                ? " — bạn đang đi đúng kế hoạch."
+                : " — hãy ưu tiên bữa nhẹ cho phần còn lại trong ngày."}
+            </p>
           </div>
-        </div>
+        </article>
 
-        <div className="profile-summary">
-          <span className="section-kicker">HỒ SƠ DINH DƯỠNG</span>
-          <h3>Mục tiêu: {profile.goal === "lose" ? "Giảm mỡ lành mạnh" : profile.goal === "gain" ? "Tăng cơ" : "Duy trì cân nặng"}</h3>
-          <p>Các chỉ số nền do hệ thống tính từ dữ liệu bạn cung cấp.</p>
-          <div className="metric-grid">
-            <Metric label="BMR" value={`${nutrition.bmr}`} unit="kcal" />
-            <Metric label="TDEE" value={`${nutrition.tdee}`} unit="kcal" />
-            <Metric label="Mục tiêu" value={`${nutrition.target}`} unit="kcal" />
-            <Metric label="Protein" value={`${nutrition.protein}`} unit="g" />
+        <article className="figma-card weight-card">
+          <div className="figma-card__heading">
+            <h2>
+              <TrendingDown size={18} /> Xu hướng 7 ngày
+            </h2>
           </div>
-          <button className="link-button" onClick={onEdit}>Cập nhật chỉ số <ArrowRight size={15} /></button>
-        </div>
+          <div className="weight-sparkline" aria-label="Biểu đồ xu hướng cân nặng">
+            {weightTrend.map((weight, index) => (
+              <div key={`${weight}-${index}`}>
+                <span style={{ height: `${42 + (weight - 62) * 22}%` }} />
+                <small>{index === 6 ? "CN" : `T${index + 2}`}</small>
+              </div>
+            ))}
+          </div>
+          <div className="weight-card__result">
+            <strong>{profile.weight} kg</strong>
+            <span>
+              <TrendingDown size={14} /> Dữ liệu minh họa 7 ngày
+            </span>
+          </div>
+          <button className="button button--soft button--full" onClick={onEdit}>
+            Cập nhật số đo
+          </button>
+        </article>
       </section>
 
       <AiInsightDashboardCard onEditProfile={onEdit} />
 
-      <section className="section-block">
-        <div className="section-heading">
-          <div><span className="section-kicker">GỢI Ý CHO BẠN</span><h2>Thực đơn hôm nay</h2></div>
-          <button className="link-button" onClick={() => onGo("plan")}>Xem cả tuần <ArrowRight size={16} /></button>
-        </div>
-        {loadingMenus ? (
-          <div className="dashboard-menu-state">
-            <LoaderCircle className="spin" size={22} />
-            <span>Đang tạo và đồng bộ thực đơn cá nhân…</span>
-          </div>
-        ) : menuError ? (
-          <div className="plan-api-error">
-            <AlertCircle size={18} />
-            <span>{menuError}</span>
-            <button onClick={() => void loadMenus()}>
-              <RefreshCw size={15} /> Thử lại
+      <section className="dashboard-focus-grid">
+        <article className="figma-card next-meal-card">
+          <div className="figma-card__heading">
+            <h2>
+              <Target size={19} /> Bữa ăn kế tiếp
+            </h2>
+            <button className="link-button" onClick={() => onGo("plan")}>
+              Cả thực đơn <ArrowRight size={15} />
             </button>
           </div>
-        ) : todayMeals.length > 0 ? (
+          {loadingMenus ? (
+            <div className="dashboard-menu-state">
+              <LoaderCircle className="spin" size={22} />
+              <span>Đang đồng bộ thực đơn cá nhân…</span>
+            </div>
+          ) : menuError ? (
+            <div className="plan-api-error">
+              <AlertCircle size={18} />
+              <span>{menuError}</span>
+              <button onClick={() => void loadMenus()}>
+                <RefreshCw size={15} /> Thử lại
+              </button>
+            </div>
+          ) : nextMeal ? (
+            <button
+              className="next-meal"
+              type="button"
+              onClick={() => onMeal(nextMeal)}
+            >
+              <span className="next-meal__image">
+                <Image
+                  src={nextMeal.image}
+                  alt={nextMeal.name}
+                  fill
+                  sizes="(max-width: 760px) 100vw, 280px"
+                />
+              </span>
+              <span className="next-meal__content">
+                <span className="next-meal__tags">
+                  <small>{mealLabels[nextItem!.meal_type]}</small>
+                  <small>Kế hoạch cá nhân</small>
+                </span>
+                <strong>{nextMeal.name}</strong>
+                <span>{nextMeal.subtitle}</span>
+                <span className="next-meal__nutrition">
+                  <small>
+                    <Flame size={14} /> {nextMeal.calories} kcal
+                  </small>
+                  <small>{nextMeal.protein}g đạm</small>
+                  <small>{nextMeal.carbs}g tinh bột</small>
+                </span>
+                <span className="next-meal__link">
+                  Xem chi tiết <ArrowRight size={15} />
+                </span>
+              </span>
+            </button>
+          ) : (
+            <div className="dashboard-menu-state dashboard-menu-state--empty">
+              <Sparkles size={24} />
+              <div>
+                <h3>
+                  {effectiveSubscribed
+                    ? "Hoàn thành hồ sơ để tạo thực đơn"
+                    : "Mở thực đơn cá nhân với NutriPlan Plus"}
+                </h3>
+                <p>
+                  {menus?.personalPlanUnavailableReason ??
+                    "Thực đơn được tính theo mục tiêu calorie và macro của bạn."}
+                </p>
+              </div>
+              <button
+                className="button button--primary button--small"
+                onClick={effectiveSubscribed ? onEdit : onSubscribe}
+              >
+                {effectiveSubscribed ? "Cập nhật hồ sơ" : "Đăng ký Plus"}
+              </button>
+            </div>
+          )}
+        </article>
+
+        <article className="figma-card daily-macros-card">
+          <div className="figma-card__heading">
+            <h2>
+              <CheckCircle2 size={18} /> Dinh dưỡng hôm nay
+            </h2>
+            <button className="link-button" onClick={() => onGo("journal")}>
+              Nhật ký
+            </button>
+          </div>
+          <div className="daily-macros-card__body">
+            <MacroRow
+              label="Protein"
+              value={consumed.protein}
+              target={nutrition.protein}
+              color="var(--primary)"
+            />
+            <MacroRow
+              label="Tinh bột"
+              value={consumed.carbs}
+              target={nutrition.carbs}
+              color="var(--amber)"
+            />
+            <MacroRow
+              label="Chất béo"
+              value={consumed.fat}
+              target={nutrition.fat}
+              color="#6366f1"
+            />
+          </div>
+          <button
+            className="button button--soft button--full"
+            onClick={() => onGo("journal")}
+          >
+            Xem nhật ký dinh dưỡng
+          </button>
+        </article>
+      </section>
+
+      {todayMeals.length > 0 ? (
+        <section className="section-block">
+          <div className="section-heading">
+            <div>
+              <span className="section-kicker">KẾ HOẠCH CÁ NHÂN</span>
+              <h2>Thực đơn hôm nay</h2>
+            </div>
+            <button className="link-button" onClick={() => onGo("plan")}>
+              Xem cả tuần <ArrowRight size={16} />
+            </button>
+          </div>
           <div className="meal-row">
             {todayMeals.map((item) => {
               const meal = personalMealItemToMeal(item);
@@ -181,51 +364,21 @@ export function DashboardPage({
               );
             })}
           </div>
-        ) : (
-          <div className="dashboard-menu-state dashboard-menu-state--empty">
-            <Sparkles size={24} />
-            <div>
-              <h3>
-                {effectiveSubscribed
-                  ? "Hoàn thành hồ sơ để tạo thực đơn"
-                  : "Mở thực đơn cá nhân với NutriPlan Plus"}
-              </h3>
-              <p>
-                {menus?.personalPlanUnavailableReason ??
-                  "Thực đơn sẽ được tính theo mục tiêu calorie và macro của bạn."}
-              </p>
-            </div>
-            <button
-              className="button button--dark button--small"
-              onClick={effectiveSubscribed ? onEdit : onSubscribe}
-            >
-              {effectiveSubscribed ? "Cập nhật hồ sơ" : "Đăng ký Plus"}
-            </button>
-          </div>
-        )}
-      </section>
+        </section>
+      ) : null}
 
-      <section className="split-cta">
-        <div className="cta-panel cta-panel--mint">
-          <div className="cta-panel__icon"><ChefHat /></div>
-          <div>
-            <span className="section-kicker">KHÔNG CÓ THỜI GIAN NẤU?</span>
-            <h3>Để bếp đối tác chuẩn bị giúp bạn</h3>
-            <p>Mua món lẻ hoặc gói 5 ngày, không cần đăng ký NutriPlan Plus.</p>
-            <button className="button button--dark" onClick={() => onGo("kitchens")}>Khám phá bếp <ArrowRight size={17} /></button>
-          </div>
+      <section className="dashboard-kitchen-banner">
+        <span>
+          <ChefHat />
+        </span>
+        <div>
+          <small>BẾP ĐỐI TÁC</small>
+          <h2>Không có thời gian nấu?</h2>
+          <p>Mua món lẻ hoặc gói ăn phù hợp mà không cần đăng ký Plus.</p>
         </div>
-        <div className="cta-panel cta-panel--peach">
-          <div className="cta-panel__icon"><Camera /></div>
-          <div>
-            <span className="section-kicker">MEAL SCAN BETA</span>
-            <h3>Chụp món ăn, ghi nhật ký nhanh hơn</h3>
-            <p>Nhận ước tính Calorie/Macro và tự xác nhận trước khi lưu.</p>
-            <button className="button button--light" onClick={() => subscribed ? onGo("journal") : onSubscribe()}>
-              {subscribed ? "Mở Meal Scan" : "Mở khóa với Plus"} <Sparkles size={17} />
-            </button>
-          </div>
-        </div>
+        <button className="button button--primary" onClick={() => onGo("kitchens")}>
+          Khám phá bếp <ArrowRight size={16} />
+        </button>
       </section>
     </div>
   );
