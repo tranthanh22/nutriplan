@@ -48,6 +48,11 @@ export type OnboardingStatus = {
   profile: NutritionProfile | null;
 };
 
+export type UserProfile = {
+  id: string;
+  full_name: string | null;
+};
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -76,6 +81,22 @@ export async function saveNutritionProfile(input: NutritionProfileInput) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function getMyProfile() {
+  return parseResponse<UserProfile>(
+    await fetch("/api/profiles/me", { cache: "no-store" })
+  );
+}
+
+export async function updateMyName(fullName: string) {
+  return parseResponse<UserProfile>(
+    await fetch("/api/profiles/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fullName: fullName.trim() })
     })
   );
 }

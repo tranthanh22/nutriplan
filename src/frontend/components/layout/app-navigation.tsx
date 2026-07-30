@@ -56,6 +56,15 @@ export function AppNavigation({
 }) {
   const [signedIn, setSignedIn] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const initials =
+    profile.name === "Bạn"
+      ? "NP"
+      : profile.name
+          .trim()
+          .split(/\s+/)
+          .slice(-2)
+          .map((part) => part[0]?.toLocaleUpperCase("vi"))
+          .join("");
 
   const submitSearch = () => {
     const query = searchQuery.trim().toLocaleLowerCase("vi");
@@ -115,7 +124,7 @@ export function AppNavigation({
           {!subscribed && <button className="button button--dark button--small" onClick={onSubscribe}>Dùng thử miễn phí</button>}
         </div>
         <button className="user-chip" onClick={onOpenProfile}>
-          <span className="avatar">MA</span>
+          <span className="avatar">{initials}</span>
           <span><strong>{profile.name}</strong><small>{subscribed ? "Thành viên Plus" : "Tài khoản miễn phí"}</small></span>
           <ChevronDown size={16} />
         </button>

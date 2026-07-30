@@ -44,16 +44,21 @@ function textToList(value: string) {
 
 export function HealthOnboardingModal({
   current,
+  currentName,
   required,
   onClose,
   onSave
 }: {
   current: NutritionProfile | null;
+  currentName: string;
   required: boolean;
   onClose: () => void;
-  onSave: (input: NutritionProfileInput) => Promise<void>;
+  onSave: (input: NutritionProfileInput, fullName: string) => Promise<void>;
 }) {
   const initial = useMemo(() => profileToInput(current), [current]);
+  const [fullName, setFullName] = useState(
+    currentName === "Bạn" ? "" : currentName
+  );
   const [form, setForm] = useState(initial);
   const [step, setStep] = useState(0);
   const [avoidFoods, setAvoidFoods] = useState(listToText(initial.dislikedIngredients));
@@ -85,13 +90,16 @@ export function HealthOnboardingModal({
     setSaving(true);
     setError("");
     try {
-      await onSave({
-        ...form,
-        dislikedIngredients: textToList(avoidFoods),
-        foodAllergies: textToList(allergies),
-        foodIntolerances: textToList(intolerances),
-        medicalNotes: form.medicalNotes?.trim() || undefined
-      });
+      await onSave(
+        {
+          ...form,
+          dislikedIngredients: textToList(avoidFoods),
+          foodAllergies: textToList(allergies),
+          foodIntolerances: textToList(intolerances),
+          medicalNotes: form.medicalNotes?.trim() || undefined
+        },
+        fullName.trim()
+      );
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -124,6 +132,18 @@ export function HealthOnboardingModal({
                 </div>
               </div>
               <div className="onboarding-fields">
+                <label className="onboarding-field--full">
+                  Họ và tên của bạn
+                  <input
+                    autoComplete="name"
+                    maxLength={100}
+                    minLength={2}
+                    placeholder="Ví dụ: Nguyễn Văn An"
+                    required
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                  />
+                </label>
                 <label>
                   Giới tính sinh học
                   <select

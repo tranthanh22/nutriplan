@@ -2,7 +2,7 @@ import type { Meal } from "@/lib/data";
 import type { JournalEntry, Profile } from "@/types/app";
 
 export const defaultProfile: Profile = {
-  name: "Minh Anh",
+  name: "Bạn",
   gender: "female",
   age: 24,
   height: 162,

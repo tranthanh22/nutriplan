@@ -18,9 +18,11 @@ import { MealPlanPage } from "@/features/meal-plan/meal-plan-page";
 import { MealModal } from "@/features/meals/meal-modal";
 import { HealthOnboardingModal } from "@/features/onboarding/health-onboarding-modal";
 import {
+  getMyProfile,
   getOnboardingStatus,
   saveNutritionProfile,
-  type NutritionProfile
+  type NutritionProfile,
+  updateMyName
 } from "@/features/onboarding/onboarding-api";
 import { ProfileReviewBanner } from "@/features/onboarding/profile-review-banner";
 import { SubscriptionModal } from "@/features/subscription/subscription-modal";
@@ -98,7 +100,12 @@ export function NutriPlanApp() {
           subscribed?: boolean;
           journal?: JournalEntry[];
         };
-        if (parsed.profile) setProfile(parsed.profile);
+        if (parsed.profile) {
+          setProfile({
+            ...parsed.profile,
+            name: parsed.profile.name === "Minh Anh" ? "Bạn" : parsed.profile.name
+          });
+        }
         if (typeof parsed.subscribed === "boolean") setSubscribed(parsed.subscribed);
         if (parsed.journal) setJournal(parsed.journal);
       } catch {
@@ -116,9 +123,13 @@ export function NutriPlanApp() {
 
   useEffect(() => {
     let cancelled = false;
-    void getOnboardingStatus()
-      .then((status) => {
+    void Promise.all([
+      getOnboardingStatus(),
+      getMyProfile().catch(() => null)
+    ])
+      .then(([status, userProfile]) => {
         if (cancelled) return;
+        const storedName = userProfile?.full_name?.trim();
         setNutritionProfile(status.profile);
         setOnboardingRequired(!status.hasProfile);
         setProfileReviewDue(status.reviewDue && status.hasProfile);
@@ -126,7 +137,13 @@ export function NutriPlanApp() {
         if (status.profile) {
           setProfile((current) => ({
             ...current,
-            ...profileDetails(status.profile!)
+            ...profileDetails(status.profile!),
+            name: storedName || current.name
+          }));
+        } else if (storedName) {
+          setProfile((current) => ({
+            ...current,
+            name: storedName
           }));
         }
       })
@@ -353,14 +370,19 @@ export function NutriPlanApp() {
       {profileOpen && (
         <HealthOnboardingModal
           current={nutritionProfile}
+          currentName={profile.name}
           required={onboardingRequired}
           onClose={() => setProfileOpen(false)}
-          onSave={async (input) => {
-            const savedProfile = await saveNutritionProfile(input);
+          onSave={async (input, fullName) => {
+            const [savedProfile, savedUserProfile] = await Promise.all([
+              saveNutritionProfile(input),
+              updateMyName(fullName)
+            ]);
             setNutritionProfile(savedProfile);
             setProfile((current) => ({
               ...current,
-              ...profileDetails(savedProfile)
+              ...profileDetails(savedProfile),
+              name: savedUserProfile.full_name?.trim() || fullName
             }));
             setOnboardingRequired(false);
             setProfileReviewDue(false);
