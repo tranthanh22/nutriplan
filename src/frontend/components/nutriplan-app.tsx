@@ -405,6 +405,13 @@ export function NutriPlanApp() {
             onSubscribe={() => setSubscribeOpen(true)}
             onEditProfile={() => setProfileOpen(true)}
             onMeal={setSelectedMeal}
+            onOpenJournal={() => navigate("journal")}
+            nutritionTargets={{
+              calories: nutrition.target,
+              protein: nutrition.protein,
+              carbs: nutrition.carbs,
+              fat: nutrition.fat
+            }}
             onLogCreated={(entry) => {
               setJournal((items) => [
                 entry,

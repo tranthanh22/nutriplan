@@ -1,7 +1,8 @@
 import Image from "next/image";
-import { ArrowRight, Camera, LockKeyhole, Utensils } from "lucide-react";
+import { ArrowRight, Camera, ChevronRight, LockKeyhole, Utensils } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProgressRing } from "@/components/ui/nutrition-widgets";
+import { JournalEntryDetailModal } from "@/features/journal/journal-entry-detail-modal";
 import type { ConsumedNutrition, JournalEntry, NutritionSummary } from "@/types/app";
 
 export function JournalPage({
@@ -21,6 +22,7 @@ export function JournalPage({
 }) {
   const adherence = Math.min(100, Math.round((consumed.calories / nutrition.target) * 100));
   const [today, setToday] = useState<Date | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
 
   useEffect(() => {
     const updateToday = () => setToday(new Date());
@@ -75,7 +77,13 @@ export function JournalPage({
             </div>
           )}
           {journal.map((entry) => (
-            <article className="journal-entry" key={entry.id}>
+            <button
+              aria-label={`Xem thông tin và thành phần của ${entry.name}`}
+              className="journal-entry journal-entry--button"
+              key={entry.id}
+              onClick={() => setSelectedEntry(entry)}
+              type="button"
+            >
               {entry.image ? (
                 <div className="journal-entry__thumb"><Image src={entry.image} alt="Ảnh món ăn" width={46} height={46} unoptimized /></div>
               ) : (
@@ -88,8 +96,9 @@ export function JournalPage({
               <div className="journal-entry__numbers">
                 <strong>{entry.calories} kcal</strong>
                 <span>P {entry.protein}g · C {entry.carbs}g · F {entry.fat}g</span>
+                <small>Xem chi tiết <ChevronRight size={14} /></small>
               </div>
-            </article>
+            </button>
           ))}
         </div>
         <aside className="journal-aside">
@@ -107,6 +116,12 @@ export function JournalPage({
           </div>
         </aside>
       </section>
+      {selectedEntry ? (
+        <JournalEntryDetailModal
+          entry={selectedEntry}
+          onClose={() => setSelectedEntry(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -10,7 +10,8 @@ import {
   LoaderCircle,
   LogIn,
   ShieldAlert,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles
 } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
@@ -40,6 +41,7 @@ export function AiInsightDashboardCard() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [insight, setInsight] = useState<AiInsightResponse | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -100,17 +102,28 @@ export function AiInsightDashboardCard() {
     }
   }, [loadLatest]);
 
+  useEffect(() => {
+    if (insight?.status !== "processing") return;
+    const timer = window.setTimeout(
+      () => void loadLatest(true),
+      Math.max(2, insight.retryAfterSeconds ?? 3) * 1000
+    );
+    return () => window.clearTimeout(timer);
+  }, [insight?.retryAfterSeconds, insight?.status, loadLatest]);
+
   async function createInsight() {
+    setGenerating(true);
     setLoading(true);
     setError("");
     setNotice("");
     try {
       const nextInsight = await generateInsight();
       setInsight(nextInsight);
-      if (nextInsight.status === "processing") setNotice("Insight đang được tạo. Hãy làm mới lại sau vài giây.");
+      if (nextInsight.status === "processing") setNotice("NutriPlan AI đang hoàn thiện kết quả và sẽ tự cập nhật khi sẵn sàng.");
     } catch (requestError) {
       setError(requestError instanceof BackendApiError ? errorGuidance(requestError) : "Không thể kết nối API.");
     } finally {
+      setGenerating(false);
       setLoading(false);
     }
   }
@@ -144,7 +157,9 @@ export function AiInsightDashboardCard() {
         />
       )}
 
-      {insight?.status === "processing" && <div className="insight-processing"><LoaderCircle className="spin" size={22} /><div><strong>AI đang xử lý insight</strong><span>Thử làm mới lại sau {insight.retryAfterSeconds ?? 3} giây.</span></div></div>}
+      {generating && <InsightLoadingState />}
+      {!generating && insight?.status === "processing" && <InsightLoadingState waitingForResult />}
+      {!generating && loading && !insight && <div className="insight-processing"><LoaderCircle className="spin" size={21} /><span>Đang tải phân tích gần nhất…</span></div>}
       {insight?.requiresSubscription && <InsightPreview insight={insight} />}
       {insight?.insight && <InsightDetail insight={insight.insight} generatedAt={insight.generatedAt} safetyStatus={insight.safetyStatus} />}
       {user && !insight && !loading && !error && !notice && (
@@ -158,6 +173,28 @@ export function AiInsightDashboardCard() {
         </div>
       )}
     </section>
+  );
+}
+
+function InsightLoadingState({ waitingForResult = false }: { waitingForResult?: boolean }) {
+  return (
+    <div className="insight-generating" aria-live="polite" aria-busy="true">
+      <div className="insight-generating__visual">
+        <span className="insight-generating__orbit"><BrainCircuit size={25} /></span>
+        <Sparkles className="insight-generating__sparkle" size={18} />
+      </div>
+      <div className="insight-generating__copy">
+        <span className="section-kicker">ĐANG PHÂN TÍCH</span>
+        <h3>{waitingForResult ? "AI đang hoàn thiện Insight của bạn" : "Đang kết nối dữ liệu và tạo Insight"}</h3>
+        <p>Bạn cứ giữ trang này mở. Kết quả sẽ tự xuất hiện ngay khi xử lý xong.</p>
+        <div className="insight-generating__progress" aria-hidden="true"><span /></div>
+      </div>
+      <div className="insight-generating__steps" aria-hidden="true">
+        <span className="is-active">Tổng hợp chỉ số</span>
+        <span>Đối chiếu mục tiêu</span>
+        <span>Tạo đề xuất</span>
+      </div>
+    </div>
   );
 }
 

@@ -3,6 +3,7 @@ import { resolveFigmaMealImage } from "@/lib/figma-assets";
 import type { JournalEntry } from "@/types/app";
 import type {
   BackendJournalEntry,
+  JournalEntryDetail,
   MyMenusResponse,
   PersonalMealItem,
   ReplacementCandidate
@@ -103,6 +104,13 @@ export function getNutritionJournal(date?: string) {
   );
 }
 
+export function getJournalEntryDetail(entryId: string, signal?: AbortSignal) {
+  return requestJson<JournalEntryDetail>(
+    `/api/meal-plans/journal/${encodeURIComponent(entryId)}`,
+    { signal }
+  );
+}
+
 export function getDishRecipe(dishId: string, signal?: AbortSignal) {
   return requestJson<DishRecipe>(
     `/api/dishes/${encodeURIComponent(dishId)}/recipe`,
@@ -165,6 +173,8 @@ export function backendLogToJournal(entry: BackendJournalEntry): JournalEntry {
     carbs: Number(entry.carbs_g),
     fat: Number(entry.fat_g),
     source,
+    dishId: entry.dish_id,
+    dailyOrderItemId: entry.daily_order_item_id,
     time: consumedAt.toLocaleTimeString("vi-VN", {
       hour: "2-digit",
       minute: "2-digit"

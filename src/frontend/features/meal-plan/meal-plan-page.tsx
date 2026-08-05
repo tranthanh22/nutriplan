@@ -16,7 +16,6 @@ import {
   Sparkles
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MacroRow } from "@/components/ui/nutrition-widgets";
 import type { Meal } from "@/lib/data";
 import type { JournalEntry } from "@/types/app";
 import {
@@ -35,6 +34,7 @@ import type {
 import { MenuCalendar, type MenuCalendarDay } from "./menu-calendar";
 import { KitchenMealChangeModal } from "./kitchen-meal-change-modal";
 import { ReplacementModal } from "./replacement-modal";
+import { TodayNutritionCard } from "./today-nutrition-card";
 import { resolveFigmaMealImage } from "@/lib/figma-assets";
 
 const mealLabels = {
@@ -116,13 +116,22 @@ export function MealPlanPage({
   onSubscribe,
   onEditProfile,
   onMeal,
-  onLogCreated
+  onLogCreated,
+  onOpenJournal,
+  nutritionTargets
 }: {
   subscribed: boolean;
   onSubscribe: () => void;
   onEditProfile: () => void;
   onMeal: (meal: Meal) => void;
   onLogCreated: (entry: JournalEntry) => void;
+  onOpenJournal: () => void;
+  nutritionTargets: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
 }) {
   const [menus, setMenus] = useState<MyMenusResponse | null>(null);
   const [source, setSource] = useState<"personal" | "kitchen">("personal");
@@ -227,6 +236,10 @@ export function MealPlanPage({
   const selectedKitchenMeals = useMemo(
     () => (menus?.kitchenMeals ?? []).filter((meal) => meal.delivery_date === selectedDate),
     [menus, selectedDate]
+  );
+  const kitchenNutritionItems = useMemo(
+    () => selectedKitchenMeals.flatMap((meal) => meal.daily_order_items),
+    [selectedKitchenMeals]
   );
   const totals = useMemo(
     () =>
@@ -504,35 +517,16 @@ export function MealPlanPage({
             </div>
 
             <aside className="plan-aside">
-              <div className="aside-card">
-                <span className="section-kicker">TỔNG DINH DƯỠNG NGÀY</span>
-                <h3>{formatDate(selectedDate, { weekday: "long" })}</h3>
-                <MacroRow
-                  label="Protein"
-                  value={Math.round(totals.protein)}
-                  target={Math.round(Number(plan.target_protein_g))}
-                  color="var(--coral)"
-                />
-                <MacroRow
-                  label="Carbs"
-                  value={Math.round(totals.carbs)}
-                  target={Math.round(Number(plan.target_carbs_g))}
-                  color="var(--amber)"
-                />
-                <MacroRow
-                  label="Chất béo"
-                  value={Math.round(totals.fat)}
-                  target={Math.round(Number(plan.target_fat_g))}
-                  color="var(--mint-dark)"
-                />
-                <div className="aside-total">
-                  <span>Tổng năng lượng</span>
-                  <strong>
-                    {Math.round(totals.calories)} /{" "}
-                    {Math.round(Number(plan.target_calories_kcal))} kcal
-                  </strong>
-                </div>
-              </div>
+              <TodayNutritionCard
+                meals={dayMeals}
+                targets={{
+                  calories: Number(plan.target_calories_kcal),
+                  protein: Number(plan.target_protein_g),
+                  carbs: Number(plan.target_carbs_g),
+                  fat: Number(plan.target_fat_g)
+                }}
+                onOpenJournal={onOpenJournal}
+              />
             </aside>
           </section> : selectedDate ? (
             <section className="menu-calendar-empty menu-day-detail" ref={dayDetailRef}>
@@ -605,8 +599,9 @@ export function MealPlanPage({
                 </p>
               </div>
             ) : (
-              <div className="kitchen-menu-list">
-                {selectedKitchenMeals.map((meal) => {
+              <div className="kitchen-menu-layout">
+                <div className="kitchen-menu-list">
+                  {selectedKitchenMeals.map((meal) => {
                   const totals = meal.daily_order_items.reduce(
                     (sum, item) => ({
                       calories: sum.calories + Number(item.calories_kcal),
@@ -692,13 +687,27 @@ export function MealPlanPage({
                                   <button
                                     className="button button--dark button--small"
                                     disabled={eaten || meal.status !== "delivered" || !hasActiveSubscription || Boolean(confirmingId)}
-                                    title={!hasActiveSubscription ? "Cần gói Plus để ghi vào nhật ký" : undefined}
+                                    title={
+                                      eaten
+                                        ? "Món đã có trong nhật ký dinh dưỡng"
+                                        : !hasActiveSubscription
+                                          ? "Cần gói Plus để ghi vào nhật ký"
+                                          : meal.status !== "delivered"
+                                            ? "Chỉ xác nhận đã ăn sau khi bếp giao món"
+                                            : "Xác nhận đã ăn và thêm vào nhật ký dinh dưỡng"
+                                    }
                                     onClick={() => void confirmKitchenItem(item.id)}
                                   >
                                     {confirmingId === item.id
                                       ? <LoaderCircle className="spin" size={16} />
                                       : <Check size={16} />}
-                                    Đã ăn
+                                    {eaten
+                                      ? "Đã ghi nhật ký"
+                                      : !hasActiveSubscription
+                                        ? "Cần Plus để ghi"
+                                        : meal.status !== "delivered"
+                                          ? "Chờ bếp giao"
+                                          : "Đã ăn"}
                                   </button>
                                   <button
                                     className="button button--outline button--small"
@@ -722,7 +731,17 @@ export function MealPlanPage({
                       </div>
                     </article>
                   );
-                })}
+                  })}
+                </div>
+                <aside className="plan-aside kitchen-nutrition-aside">
+                  <TodayNutritionCard
+                    meals={kitchenNutritionItems}
+                    targets={nutritionTargets}
+                    sourceLabel="lịch ăn của bếp đối tác"
+                    micronutrientsAvailable={false}
+                    onOpenJournal={onOpenJournal}
+                  />
+                </aside>
               </div>
             )}
           </section>

@@ -8,6 +8,24 @@ export type PlanDish = {
   image_path: string | null;
   prep_time_minutes: number | null;
   dish_kind: "meal" | "snack" | "drink";
+  dish_nutrition?:
+    | DishMicronutrients
+    | DishMicronutrients[]
+    | null;
+};
+
+export type DishMicronutrients = {
+  fiber_g: number | string | null;
+  sodium_mg: number | string | null;
+  cholesterol_mg: number | string | null;
+  potassium_mg: number | string | null;
+  calcium_mg: number | string | null;
+  iron_mg: number | string | null;
+  magnesium_mg: number | string | null;
+  vitamin_a_mcg: number | string | null;
+  vitamin_c_mg: number | string | null;
+  vitamin_d_mcg: number | string | null;
+  vitamin_b12_mcg: number | string | null;
 };
 
 export type PersonalMealItem = {
@@ -91,7 +109,19 @@ export type BackendJournalEntry = {
   protein_g: number | string;
   carbs_g: number | string;
   fat_g: number | string;
+  dish_id?: string | null;
+  meal_plan_item_id?: string | null;
+  daily_order_id?: string | null;
   daily_order_item_id?: string | null;
+};
+
+export type JournalEntryDetail = BackendJournalEntry & {
+  servings: number;
+  image_path: string | null;
+  description: string | null;
+  ingredients: string[];
+  instructions: string[];
+  cooking_tips: string | null;
 };
 
 export type MyMenusResponse = {

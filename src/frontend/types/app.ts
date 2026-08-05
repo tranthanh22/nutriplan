@@ -33,6 +33,8 @@ export type JournalEntry = {
   source: "Kế hoạch" | "Bếp đối tác" | "Ảnh ước tính" | "Nhập tay";
   time: string;
   image?: string;
+  dishId?: string | null;
+  dailyOrderItemId?: string | null;
 };
 
 export type NutritionSummary = {

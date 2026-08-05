@@ -17,8 +17,10 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   createBillingPortal,
+  cancelCurrentSubscription,
   getCurrentSubscription,
   getSettings,
+  resumeCurrentSubscription,
   SettingsApiError,
   type CurrentSubscription,
   updateSettings
@@ -45,6 +47,9 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [confirmCancellation, setConfirmCancellation] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -86,6 +91,15 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
     );
   }, [active, subscription]);
   const trialing = active && subscription?.provider === "internal_trial";
+  const cancellationScheduled =
+    active &&
+    (subscription?.status === "cancel_at_period_end" ||
+      subscription?.cancel_at_period_end === true);
+  const stripeRecurring = Boolean(
+    subscription?.provider === "stripe" &&
+      subscription.provider_subscription_id?.startsWith("sub_")
+  );
+  const autoRenewing = active && stripeRecurring && !cancellationScheduled;
   const needsLogin = error.toLowerCase().includes("đăng nhập");
 
   async function saveName(event: FormEvent<HTMLFormElement>) {
@@ -147,6 +161,33 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
           : "Không thể đăng xuất. Vui lòng thử lại."
       );
       setSigningOut(false);
+    }
+  }
+
+  async function cancelSubscription() {
+    setCancelling(true);
+    setError("");
+    try {
+      const nextSubscription = await cancelCurrentSubscription();
+      setSubscription(nextSubscription);
+      setConfirmCancellation(false);
+    } catch (requestError) {
+      setError(readError(requestError));
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  async function resumeSubscription() {
+    setResuming(true);
+    setError("");
+    try {
+      const nextSubscription = await resumeCurrentSubscription();
+      setSubscription(nextSubscription);
+    } catch (requestError) {
+      setError(readError(requestError));
+    } finally {
+      setResuming(false);
     }
   }
 
@@ -214,24 +255,62 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
             <div className={`subscription-summary ${active ? "is-active" : ""}`}>
               <div>
                 <span className="subscription-summary__status">
-                  {trialing ? "ĐANG DÙNG THỬ" : active ? "ĐANG HOẠT ĐỘNG" : "TÀI KHOẢN MIỄN PHÍ"}
+                  {cancellationScheduled ? "ĐÃ TẮT TỰ ĐỘNG GIA HẠN" : autoRenewing ? "TỰ ĐỘNG GIA HẠN" : trialing ? "ĐANG DÙNG THỬ" : active ? "ĐANG HOẠT ĐỘNG" : "TÀI KHOẢN MIỄN PHÍ"}
                 </span>
                 <h3>{active ? subscription?.subscription_plans?.name ?? "NutriPlan Plus" : "NutriPlan Free"}</h3>
                 <p>
                   {active
-                    ? `${trialing ? "Dùng thử" : "Còn"} ${remainingDays} ngày · hiệu lực đến ${formatDate(subscription?.current_period_end)}`
+                    ? `${cancellationScheduled ? "Còn quyền truy cập" : trialing ? "Dùng thử" : "Còn"} ${remainingDays} ngày · hiệu lực đến ${formatDate(subscription?.current_period_end)}`
                     : "Nâng cấp để xem recipe chi tiết và sử dụng đầy đủ AI Insight."}
                 </p>
               </div>
               {active && <CheckCircle2 size={27} />}
             </div>
             <p className="settings-note">
-              Gói hiện tại là quyền truy cập theo thời hạn, không tự động gia hạn và
-              không thể hủy giữa kỳ.
+              {cancellationScheduled
+                ? `Tự động gia hạn đã tắt. Bạn vẫn dùng Plus đến hết ngày ${formatDate(subscription?.current_period_end)}.`
+                : autoRenewing
+                  ? `Stripe sẽ tự động gia hạn vào cuối kỳ hiện tại (${formatDate(subscription?.current_period_end)}). Bạn có thể tắt bất cứ lúc nào.`
+                  : "Gói hiện tại là gói theo thời hạn và không tự động gia hạn."}
             </p>
-            <button className="button button--dark" onClick={onChangePlan}>
-              <Sparkles size={17} /> {active ? "Đổi hoặc gia hạn gói" : "Chọn gói Plus"}
-            </button>
+            <div className="settings-subscription-actions">
+              {!active && (
+                <button className="button button--dark" onClick={onChangePlan}>
+                  <Sparkles size={17} /> Chọn gói Plus
+                </button>
+              )}
+              {cancellationScheduled && stripeRecurring && (
+                <button className="button button--dark" disabled={resuming} onClick={() => void resumeSubscription()} type="button">
+                  {resuming ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}
+                  {resuming ? "Đang bật lại…" : "Bật lại tự động gia hạn"}
+                </button>
+              )}
+              {active && !cancellationScheduled && (
+                <button
+                  className="button button--danger-outline"
+                  disabled={cancelling}
+                  onClick={() => setConfirmCancellation(true)}
+                  type="button"
+                >
+                  {autoRenewing ? "Tắt tự động gia hạn" : "Hủy gói"}
+                </button>
+              )}
+            </div>
+            {confirmCancellation && (
+              <div className="subscription-cancel-confirm" role="alert">
+                <div>
+                  <strong>{autoRenewing ? "Tắt tự động gia hạn?" : "Xác nhận hủy gói?"}</strong>
+                  <p>Stripe sẽ không thu kỳ tiếp theo. Bạn vẫn sử dụng đầy đủ tính năng Plus đến {formatDate(subscription?.current_period_end)}.</p>
+                </div>
+                <div>
+                  <button className="button button--ghost" disabled={cancelling} onClick={() => setConfirmCancellation(false)} type="button">Giữ gói</button>
+                  <button className="button button--danger" disabled={cancelling} onClick={() => void cancelSubscription()} type="button">
+                    {cancelling ? <LoaderCircle className="spin" size={17} /> : null}
+                    {cancelling ? "Đang cập nhật…" : autoRenewing ? "Tắt gia hạn" : "Xác nhận hủy"}
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="settings-card">
@@ -259,25 +338,19 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
             )}
           </section>
 
-          <section className="settings-card settings-card--account">
-            <div className="settings-card__head">
-              <span><LogOut size={20} /></span>
-              <div>
-                <h2>Đăng xuất</h2>
-                <p>Kết thúc phiên NutriPlan trên thiết bị này. Các thiết bị khác vẫn được giữ đăng nhập.</p>
-              </div>
-            </div>
-            <button
-              className="button button--outline settings-logout-button"
-              disabled={signingOut}
-              onClick={() => void signOut()}
-              type="button"
-            >
-              {signingOut ? <LoaderCircle className="spin" size={17} /> : <LogOut size={17} />}
-              {signingOut ? "Đang đăng xuất…" : "Đăng xuất"}
-            </button>
-          </section>
         </div>
+      )}
+
+      {!loading && (
+        <button
+          className="button button--outline settings-logout-button"
+          disabled={signingOut}
+          onClick={() => void signOut()}
+          type="button"
+        >
+          {signingOut ? <LoaderCircle className="spin" size={17} /> : <LogOut size={17} />}
+          {signingOut ? "Đang đăng xuất…" : "Đăng xuất"}
+        </button>
       )}
 
       {error && (

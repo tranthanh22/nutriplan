@@ -145,7 +145,7 @@ export function SubscriptionModal({
           </div>
         )}
         <h2>Ăn đúng kế hoạch,<br />nhẹ đầu mỗi ngày.</h2>
-        <p>Mở khóa bộ công cụ giúp bạn biến mục tiêu thành thói quen thực tế.</p>
+        <p>Mở khóa bộ công cụ giúp bạn biến mục tiêu thành thói quen thực tế. Gói được tự động gia hạn và có thể hủy bất cứ lúc nào.</p>
         <div className="benefit-list">
           <div><CheckCircle2 /><span><strong>Thực đơn cá nhân hóa</strong><small>Recipe, định lượng và dinh dưỡng chi tiết</small></span></div>
           <div><CheckCircle2 /><span><strong>AI Health Insight đầy đủ</strong><small>Quan sát và đề xuất dựa trên hồ sơ hiện hành</small></span></div>
@@ -177,11 +177,11 @@ export function SubscriptionModal({
           ))}
         </div>}
 
-        {selectedPlan && <div className="subscription-price"><div><strong>{formatPrice(selectedPlan.price_amount, selectedPlan.currency)}</strong><span> / {planDuration(selectedPlan)}</span></div><small>Kế hoạch làm mới mỗi 7 ngày · Không bao gồm tiền món bếp</small></div>}
+        {selectedPlan && <div className="subscription-price"><div><strong>{formatPrice(selectedPlan.price_amount, selectedPlan.currency)}</strong><span> / {planDuration(selectedPlan)}</span></div><small>Tự động gia hạn mỗi {planDuration(selectedPlan)} · Có thể tắt trong Cài đặt · Không bao gồm tiền món bếp</small></div>}
         {error && <div className="subscription-error"><AlertCircle size={17} /><span>{error}</span></div>}
         <button className="button button--cream button--full" disabled={!selectedPlan || checkingOut || startingTrial} onClick={() => void checkout()}>
           {checkingOut ? <LoaderCircle className="spin" size={18} /> : <LockKeyhole size={18} />}
-          {checkingOut ? "Đang mở cổng thanh toán…" : selectedPlan ? `Thanh toán gói ${planDuration(selectedPlan)}` : "Chọn một gói"}
+          {checkingOut ? "Đang mở cổng thanh toán…" : selectedPlan ? `Đăng ký gói ${planDuration(selectedPlan)}` : "Chọn một gói"}
           {!checkingOut && <ArrowRight size={18} />}
         </button>
         <small className="demo-caption">Thanh toán được xử lý bảo mật bởi Stripe. NutriPlan không lưu thông tin thẻ.</small>

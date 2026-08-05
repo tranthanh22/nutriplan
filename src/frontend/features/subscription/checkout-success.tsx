@@ -144,7 +144,7 @@ export function CheckoutSuccess({ sessionId }: { sessionId: string }) {
             <h1>NutriPlan Plus đã được kích hoạt</h1>
             <p>
               {result.subscription?.subscription_plans?.name ?? "Gói của bạn"}
-              {expiresAt ? ` có hiệu lực đến ${expiresAt}.` : " đã sẵn sàng."}
+              {expiresAt ? ` đã kích hoạt và sẽ tự động gia hạn vào ${expiresAt}.` : " đã sẵn sàng và được tự động gia hạn."}
             </p>
             <div className="checkout-unlocked">
               <div><Utensils size={18} /><span>Thực đơn và công thức chi tiết</span></div>

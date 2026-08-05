@@ -5,7 +5,6 @@ import {
   Activity,
   AlertCircle,
   ArrowRight,
-  CheckCircle2,
   ChefHat,
   Flame,
   LoaderCircle,
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MealCard } from "@/components/shared/meal-card";
-import { MacroRow } from "@/components/ui/nutrition-widgets";
 import { AiInsightDashboardCard } from "@/features/ai-insights/ai-insights-page";
 import {
   getMyMenus,
@@ -290,7 +288,7 @@ export function DashboardPage({
 
       <AiInsightDashboardCard />
 
-      <section className="dashboard-focus-grid">
+      <section>
         <article className="figma-card next-meal-card">
           <div className="figma-card__heading">
             <h2>
@@ -370,42 +368,6 @@ export function DashboardPage({
           )}
         </article>
 
-        <article className="figma-card daily-macros-card">
-          <div className="figma-card__heading">
-            <h2>
-              <CheckCircle2 size={18} /> Dinh dưỡng hôm nay
-            </h2>
-            <button className="link-button" onClick={() => onGo("journal")}>
-              Nhật ký
-            </button>
-          </div>
-          <div className="daily-macros-card__body">
-            <MacroRow
-              label="Protein"
-              value={consumed.protein}
-              target={nutrition.protein}
-              color="var(--primary)"
-            />
-            <MacroRow
-              label="Tinh bột"
-              value={consumed.carbs}
-              target={nutrition.carbs}
-              color="var(--amber)"
-            />
-            <MacroRow
-              label="Chất béo"
-              value={consumed.fat}
-              target={nutrition.fat}
-              color="#6366f1"
-            />
-          </div>
-          <button
-            className="button button--soft button--full"
-            onClick={() => onGo("journal")}
-          >
-            Xem nhật ký dinh dưỡng
-          </button>
-        </article>
       </section>
 
       {todayMeals.length > 0 ? (

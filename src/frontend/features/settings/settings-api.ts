@@ -7,6 +7,9 @@ export type CurrentSubscription = {
   id: string;
   status: string;
   provider: string | null;
+  provider_subscription_id: string | null;
+  cancel_at_period_end: boolean;
+  cancelled_at: string | null;
   current_period_start: string | null;
   current_period_end: string | null;
   subscription_plans: {
@@ -73,4 +76,16 @@ export function createBillingPortal() {
     "/api/subscriptions/billing-portal",
     { method: "POST" }
   );
+}
+
+export function cancelCurrentSubscription() {
+  return request<NonNullable<CurrentSubscription>>("/api/subscriptions/cancel", {
+    method: "POST"
+  });
+}
+
+export function resumeCurrentSubscription() {
+  return request<NonNullable<CurrentSubscription>>("/api/subscriptions/resume", {
+    method: "POST"
+  });
 }
