@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   profileToInput,
   type NutritionProfile,
@@ -71,6 +72,33 @@ export function HealthOnboardingModal({
     key: K,
     value: NutritionProfileInput[K]
   ) => setForm((currentForm) => ({ ...currentForm, [key]: value }));
+
+  function updateWeight(weightKg: number) {
+    setForm((currentForm) => {
+      const currentDelta = currentForm.targetWeightKg - currentForm.weightKg;
+      return {
+        ...currentForm,
+        weightKg,
+        targetWeightKg:
+          currentForm.goal === "maintain"
+            ? weightKg
+            : Math.round((weightKg + currentDelta) * 10) / 10
+      };
+    });
+  }
+
+  function updateGoal(goal: NutritionProfileInput["goal"]) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      goal,
+      targetWeightKg:
+        goal === "lose_weight"
+          ? Math.max(20, currentForm.weightKg - 5)
+          : goal === "gain_muscle"
+            ? Math.min(400, currentForm.weightKg + 5)
+            : currentForm.weightKg
+    }));
+  }
 
   function toggleDiet(value: string) {
     update(
@@ -166,25 +194,27 @@ export function HealthOnboardingModal({
                 </label>
                 <label>
                   Chiều cao (cm)
-                  <input
-                    type="number"
+                  <NumberInput
                     min={80}
                     max={250}
                     required
                     value={form.heightCm}
-                    onChange={(event) => update("heightCm", Number(event.target.value))}
+                    onValueChange={(value) => {
+                      if (value !== undefined) update("heightCm", value);
+                    }}
                   />
                 </label>
                 <label>
                   Cân nặng (kg)
-                  <input
-                    type="number"
+                  <NumberInput
                     min={20}
                     max={400}
                     step="0.1"
                     required
                     value={form.weightKg}
-                    onChange={(event) => update("weightKg", Number(event.target.value))}
+                    onValueChange={(value) => {
+                      if (value !== undefined) updateWeight(value);
+                    }}
                   />
                 </label>
               </div>
@@ -229,13 +259,56 @@ export function HealthOnboardingModal({
                   Mục tiêu chính
                   <select
                     value={form.goal}
-                    onChange={(event) => update("goal", event.target.value as NutritionProfileInput["goal"])}
+                    onChange={(event) => updateGoal(event.target.value as NutritionProfileInput["goal"])}
                   >
-                    <option value="lose_weight">Giảm mỡ lành mạnh</option>
-                    <option value="maintain">Duy trì cân nặng</option>
-                    <option value="gain_muscle">Tăng cơ</option>
+                    <option value="lose_weight">Giảm cân, ưu tiên giảm mỡ và giữ cơ</option>
+                    <option value="maintain">Duy trì cân nặng và cải thiện thể lực</option>
+                    <option value="gain_muscle">Tăng cân, ưu tiên tăng cơ nạc</option>
                   </select>
                 </label>
+                <div className="goal-target-card">
+                  <div className="goal-target-card__fields">
+                    <label>
+                      Cân nặng muốn đạt (kg)
+                      <NumberInput
+                        min={form.goal === "gain_muscle" ? form.weightKg + 0.1 : 20}
+                        max={form.goal === "lose_weight" ? form.weightKg - 0.1 : 400}
+                        step="0.1"
+                        required
+                        disabled={form.goal === "maintain"}
+                        value={form.targetWeightKg}
+                        onValueChange={(value) => {
+                          if (value !== undefined) update("targetWeightKg", value);
+                        }}
+                      />
+                    </label>
+                    <label>
+                      Thời gian dự kiến
+                      <select
+                        value={form.goalDurationWeeks}
+                        onChange={(event) => update("goalDurationWeeks", Number(event.target.value))}
+                      >
+                        <option value={4}>4 tuần</option>
+                        <option value={8}>8 tuần</option>
+                        <option value={12}>12 tuần</option>
+                        <option value={16}>16 tuần</option>
+                        <option value={24}>24 tuần</option>
+                        <option value={36}>36 tuần</option>
+                        <option value={52}>1 năm</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="goal-target-card__summary">
+                    <Target size={18} />
+                    <span>
+                      Từ <strong>{form.weightKg} kg</strong> đến{" "}
+                      <strong>{form.targetWeightKg} kg</strong>
+                      {form.goal === "maintain"
+                        ? " — duy trì ổn định."
+                        : ` — ${Math.abs(form.targetWeightKg - form.weightKg).toFixed(1)} kg trong ${form.goalDurationWeeks} tuần.`}
+                    </span>
+                  </div>
+                </div>
               </div>
             </>
           )}

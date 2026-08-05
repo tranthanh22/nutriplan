@@ -181,7 +181,7 @@ export class AssistantService {
       admin
         .from('nutrition_profiles')
         .select(
-          'id, gender, birth_date, height_cm, weight_kg, activity_level, goal, dietary_preferences, disliked_ingredients, target_calories_kcal, target_protein_g, target_carbs_g, target_fat_g',
+          'id, gender, birth_date, height_cm, weight_kg, activity_level, goal, target_weight_kg, goal_duration_weeks, dietary_preferences, disliked_ingredients, target_calories_kcal, target_protein_g, target_carbs_g, target_fat_g',
         )
         .eq('user_id', userId)
         .eq('is_current', true)
@@ -245,6 +245,8 @@ export class AssistantService {
             weightKg: Number(profile.weight_kg),
             activityLevel: profile.activity_level,
             goal: profile.goal,
+            targetWeightKg: Number(profile.target_weight_kg),
+            goalDurationWeeks: Number(profile.goal_duration_weeks),
             dietaryPreferences: profile.dietary_preferences,
             dislikedIngredients: profile.disliked_ingredients,
             dailyTargets: {

@@ -6,6 +6,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { validateEnvironment } from './config/env.validation';
 import { SupabaseModule } from './database/supabase.module';
 import { AiInsightsModule } from './modules/ai-insights/ai-insights.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -29,6 +30,7 @@ import { WellnessModule } from './modules/wellness/wellness.module';
     ProfilesModule,
     NutritionModule,
     AiInsightsModule,
+    AdminModule,
     AssistantModule,
     SettingsModule,
     SubscriptionsModule,

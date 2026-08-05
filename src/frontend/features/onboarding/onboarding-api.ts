@@ -17,6 +17,8 @@ export type NutritionProfile = {
   activity_level: ActivityLevel;
   activity_days_per_week: number;
   goal: NutritionGoal;
+  target_weight_kg: number | string;
+  goal_duration_weeks: number;
   dietary_preferences: string[];
   disliked_ingredients: string[];
   food_allergies: string[];
@@ -34,6 +36,8 @@ export type NutritionProfileInput = {
   activityLevel: ActivityLevel;
   activityDaysPerWeek: number;
   goal: NutritionGoal;
+  targetWeightKg: number;
+  goalDurationWeeks: number;
   dietaryPreferences: string[];
   dislikedIngredients: string[];
   foodAllergies: string[];
@@ -50,6 +54,7 @@ export type OnboardingStatus = {
 
 export type UserProfile = {
   id: string;
+  role: "customer" | "kitchen_staff" | "admin";
   full_name: string | null;
 };
 
@@ -112,6 +117,8 @@ export function profileToInput(
     activityLevel: profile?.activity_level ?? "moderate",
     activityDaysPerWeek: Number(profile?.activity_days_per_week ?? 3),
     goal: profile?.goal ?? "maintain",
+    targetWeightKg: Number(profile?.target_weight_kg ?? profile?.weight_kg ?? 60),
+    goalDurationWeeks: Number(profile?.goal_duration_weeks ?? 12),
     dietaryPreferences: profile?.dietary_preferences ?? [],
     dislikedIngredients: profile?.disliked_ingredients ?? [],
     foodAllergies: profile?.food_allergies ?? [],

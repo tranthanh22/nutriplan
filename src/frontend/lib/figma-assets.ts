@@ -14,6 +14,10 @@ export const figmaAssets = {
 } as const;
 
 export function resolveFigmaMealImage(name: string, image?: string | null) {
+  // Ảnh do catalogue/backend trả về là nguồn chính xác của món. Asset Figma
+  // chỉ là fallback cho dữ liệu cũ chưa có image_path.
+  if (image?.trim()) return image;
+
   const normalized = name.toLocaleLowerCase("vi");
 
   if (normalized.includes("yến mạch") || normalized.includes("oat")) {
@@ -48,5 +52,5 @@ export function resolveFigmaMealImage(name: string, image?: string | null) {
     return FIGMA_MEAL_IMAGES.chickenBowl;
   }
 
-  return image || FIGMA_MEAL_IMAGES.spread;
+  return FIGMA_MEAL_IMAGES.spread;
 }

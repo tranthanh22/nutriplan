@@ -221,6 +221,8 @@ export class AiInsightsService {
       activity_level: profile.activity_level,
       activity_days_per_week: Number(profile.activity_days_per_week ?? 0),
       goal: profile.goal,
+      target_weight_kg: Number(profile.target_weight_kg),
+      goal_duration_weeks: Number(profile.goal_duration_weeks),
       dietary_preferences: profile.dietary_preferences,
       disliked_ingredients: profile.disliked_ingredients,
       food_allergies: profile.food_allergies ?? [],

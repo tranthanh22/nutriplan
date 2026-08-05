@@ -65,6 +65,18 @@ export class CreateNutritionProfileDto {
   @IsEnum(NutritionGoal)
   goal: NutritionGoal;
 
+  @ApiProperty({ minimum: 20, maximum: 400, description: 'Cân nặng người dùng muốn đạt tới' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(20)
+  @Max(400)
+  targetWeightKg: number;
+
+  @ApiProperty({ minimum: 2, maximum: 104, description: 'Số tuần dự kiến để đạt mục tiêu' })
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Min(2)
+  @Max(104)
+  goalDurationWeeks: number;
+
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()

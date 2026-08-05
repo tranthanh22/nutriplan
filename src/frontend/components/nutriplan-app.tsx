@@ -27,9 +27,13 @@ import {
 import { ProfileReviewBanner } from "@/features/onboarding/profile-review-banner";
 import { SubscriptionModal } from "@/features/subscription/subscription-modal";
 import { SettingsPage } from "@/features/settings/settings-page";
+import type { CurrentSubscription } from "@/features/settings/settings-api";
+import { AdminDashboardPage } from "@/features/management/admin-dashboard-page";
+import { KitchenManagementPage } from "@/features/management/kitchen-management-page";
 import type { KitchenOffer, Meal } from "@/lib/data";
-import { calculateNutrition, defaultProfile, initialJournal, mealToEntry } from "@/lib/nutrition";
-import type { JournalEntry, Profile, View } from "@/types/app";
+import { calculateNutrition, defaultProfile, mealToEntry } from "@/lib/nutrition";
+import { createClient } from "@/lib/supabase/client";
+import type { AppRole, JournalEntry, Profile, View } from "@/types/app";
 
 const ACTIVITY_FACTORS = {
   sedentary: 1.2,
@@ -53,6 +57,13 @@ function ageFromBirthDate(value: string) {
   return age;
 }
 
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function profileDetails(profile: NutritionProfile): Partial<Profile> {
   return {
     gender: profile.gender,
@@ -66,6 +77,8 @@ function profileDetails(profile: NutritionProfile): Partial<Profile> {
         : profile.goal === "gain_muscle"
           ? "gain"
           : "maintain",
+    targetWeight: Number(profile.target_weight_kg),
+    goalDurationWeeks: Number(profile.goal_duration_weeks),
     allergies: profile.food_allergies.join(", ") || "Không có"
   };
 }
@@ -74,8 +87,8 @@ export function NutriPlanApp() {
   const [view, setView] = useState<View>("home");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profile, setProfile] = useState<Profile>(defaultProfile);
-  const [subscribed, setSubscribed] = useState(false);
-  const [journal, setJournal] = useState<JournalEntry[]>(initialJournal);
+  const [subscriptionAccess, setSubscriptionAccess] = useState<CurrentSubscription>(null);
+  const [journal, setJournal] = useState<JournalEntry[]>([]);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<KitchenOffer | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -88,31 +101,42 @@ export function NutriPlanApp() {
   const [toast, setToast] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [menuRevision, setMenuRevision] = useState(0);
+  const [role, setRole] = useState<AppRole | null>(null);
+  const subscribed = Boolean(
+    subscriptionAccess &&
+    ["active", "cancel_at_period_end"].includes(subscriptionAccess.status) &&
+    subscriptionAccess.current_period_end &&
+    new Date(subscriptionAccess.current_period_end) > new Date()
+  );
 
   useEffect(() => {
-    const checkoutConfirmed =
-      window.sessionStorage.getItem("nutriplan-checkout-confirmed") === "true";
     const saved = window.localStorage.getItem("nutriplan-demo");
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as {
           profile?: Profile;
-          subscribed?: boolean;
-          journal?: JournalEntry[];
         };
         if (parsed.profile) {
+          const storedWeight = Number(parsed.profile.weight ?? defaultProfile.weight);
+          const storedGoal = parsed.profile.goal ?? defaultProfile.goal;
           setProfile({
+            ...defaultProfile,
             ...parsed.profile,
-            name: parsed.profile.name === "Minh Anh" ? "Bạn" : parsed.profile.name
+            name: parsed.profile.name === "Minh Anh" ? "Bạn" : parsed.profile.name,
+            targetWeight:
+              Number(parsed.profile.targetWeight) ||
+              (storedGoal === "lose"
+                ? Math.max(20, storedWeight - 5)
+                : storedGoal === "gain"
+                  ? Math.min(400, storedWeight + 5)
+                  : storedWeight),
+            goalDurationWeeks: Number(parsed.profile.goalDurationWeeks) || 12
           });
         }
-        if (typeof parsed.subscribed === "boolean") setSubscribed(parsed.subscribed);
-        if (parsed.journal) setJournal(parsed.journal);
       } catch {
         window.localStorage.removeItem("nutriplan-demo");
       }
     }
-    if (checkoutConfirmed) setSubscribed(true);
     if (new URLSearchParams(window.location.search).get("settings") === "billing") {
       setView("settings");
       setToast("Bạn đã quay lại từ trang quản lý thanh toán Stripe.");
@@ -130,10 +154,14 @@ export function NutriPlanApp() {
       .then(([status, userProfile]) => {
         if (cancelled) return;
         const storedName = userProfile?.full_name?.trim();
+        const userRole = userProfile?.role ?? "customer";
+        setRole(userRole);
+        if (userRole === "admin") setView("admin");
+        if (userRole === "kitchen_staff") setView("kitchen-management");
         setNutritionProfile(status.profile);
-        setOnboardingRequired(!status.hasProfile);
-        setProfileReviewDue(status.reviewDue && status.hasProfile);
-        if (!status.hasProfile) setProfileOpen(true);
+        setOnboardingRequired(userRole === "customer" && !status.hasProfile);
+        setProfileReviewDue(userRole === "customer" && status.reviewDue && status.hasProfile);
+        if (userRole === "customer" && !status.hasProfile) setProfileOpen(true);
         if (status.profile) {
           setProfile((current) => ({
             ...current,
@@ -157,8 +185,8 @@ export function NutriPlanApp() {
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem("nutriplan-demo", JSON.stringify({ profile, subscribed, journal }));
-  }, [profile, subscribed, journal, hydrated]);
+    window.localStorage.setItem("nutriplan-demo", JSON.stringify({ profile }));
+  }, [profile, hydrated]);
 
   useEffect(() => {
     if (!toast) return;
@@ -168,16 +196,65 @@ export function NutriPlanApp() {
 
   useEffect(() => {
     if (!subscribed) return;
-    let cancelled = false;
-    void getNutritionJournal()
-      .then(({ entries }) => {
-        if (!cancelled) setJournal(entries.map(backendLogToJournal));
-      })
-      .catch(() => {
+    let active = true;
+    let activeDate = localDateKey();
+    const supabase = createClient();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const refreshJournal = async () => {
+      const date = localDateKey();
+      activeDate = date;
+      try {
+        const { entries } = await getNutritionJournal(date);
+        if (active) setJournal(entries.map(backendLogToJournal));
+      } catch {
         // Giữ dữ liệu hiện có nếu API tạm thời không sẵn sàng.
-      });
+      }
+    };
+
+    const refreshOnFocus = () => void refreshJournal();
+    const dateTimer = window.setInterval(() => {
+      if (localDateKey() !== activeDate) void refreshJournal();
+    }, 60_000);
+    window.addEventListener("focus", refreshOnFocus);
+    void refreshJournal();
+    void supabase.auth.getUser().then(({
+      data
+    }: {
+      data: { user: { id: string } | null };
+    }) => {
+      if (!active || !data.user) return;
+      const filter = `user_id=eq.${data.user.id}`;
+      channel = supabase
+        .channel(`nutrition-journal-${data.user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "meal_log_entries",
+            filter
+          },
+          () => void refreshJournal()
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "meal_log_entries",
+            filter
+          },
+          () => void refreshJournal()
+        )
+        .subscribe();
+    });
+
     return () => {
-      cancelled = true;
+      active = false;
+      window.clearInterval(dateTimer);
+      window.removeEventListener("focus", refreshOnFocus);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [subscribed]);
 
@@ -188,8 +265,11 @@ export function NutriPlanApp() {
     async function refreshSubscription(attempt = 0) {
       try {
         const response = await fetch("/api/subscriptions/current", { cache: "no-store" });
-        if (!response.ok) return;
-        const current = await response.json() as { status?: string; current_period_end?: string } | null;
+        if (!response.ok) {
+          if (!cancelled) setSubscriptionAccess(null);
+          return;
+        }
+        const current = await response.json() as CurrentSubscription;
         const active = Boolean(
           current &&
           ["active", "cancel_at_period_end"].includes(current.status ?? "") &&
@@ -201,7 +281,7 @@ export function NutriPlanApp() {
           window.setTimeout(() => void refreshSubscription(attempt + 1), 1200);
           return;
         }
-        setSubscribed(active);
+        setSubscriptionAccess(current);
         if (active && checkoutStatus === "success") {
           window.sessionStorage.removeItem("nutriplan-checkout-confirmed");
           setToast("Thanh toán thành công. NutriPlan Plus đã được kích hoạt.");
@@ -242,6 +322,14 @@ export function NutriPlanApp() {
   );
 
   const navigate = (next: View) => {
+    if (next === "admin" && role !== "admin") {
+      setToast("Tài khoản của bạn không có quyền quản trị hệ thống.");
+      return;
+    }
+    if (next === "kitchen-management" && role !== "kitchen_staff" && role !== "admin") {
+      setToast("Tài khoản của bạn không được phân quyền quản lý nhà bếp.");
+      return;
+    }
     setView(next);
     setMobileOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -281,7 +369,9 @@ export function NutriPlanApp() {
       <AppNavigation
         view={view}
         profile={profile}
+        role={role}
         subscribed={subscribed}
+        subscription={subscriptionAccess}
         mobileOpen={mobileOpen}
         onNavigate={navigate}
         onOpenMobile={() => setMobileOpen(true)}
@@ -339,6 +429,10 @@ export function NutriPlanApp() {
         {view === "settings" && (
           <SettingsPage onChangePlan={() => setSubscribeOpen(true)} />
         )}
+        {view === "kitchen-management" && (role === "kitchen_staff" || role === "admin") && (
+          <KitchenManagementPage />
+        )}
+        {view === "admin" && role === "admin" && <AdminDashboardPage />}
       </AppNavigation>
 
       <AssistantWidget />
@@ -393,7 +487,18 @@ export function NutriPlanApp() {
           }}
         />
       )}
-      {subscribeOpen && <SubscriptionModal onClose={() => setSubscribeOpen(false)} />}
+      {subscribeOpen && (
+        <SubscriptionModal
+          hasActiveAccess={subscribed}
+          onActivated={(subscription) => {
+            setSubscriptionAccess(subscription);
+            setSubscribeOpen(false);
+            setMenuRevision((current) => current + 1);
+            setToast("Đã kích hoạt dùng thử NutriPlan Plus trong 7 ngày.");
+          }}
+          onClose={() => setSubscribeOpen(false)}
+        />
+      )}
       {imageOpen && (
         <ImageAnalysisModal
           onClose={() => setImageOpen(false)}

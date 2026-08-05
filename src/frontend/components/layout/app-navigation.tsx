@@ -6,36 +6,30 @@ import { useEffect, useState } from "react";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import {
   BarChart3,
-  Bell,
   CalendarDays,
   Check,
   ChefHat,
   ChevronDown,
-  CircleUserRound,
+  ClipboardList,
   Home,
   Leaf,
   LogIn,
   Menu,
-  Search,
   Settings,
+  ShieldCheck,
   Sparkles
 } from "lucide-react";
-import type { Profile, View } from "@/types/app";
+import type { AppRole, Profile, View } from "@/types/app";
 import { createClient } from "@/lib/supabase/client";
-
-const viewLabels: Record<View, string> = {
-  home: "Tổng quan",
-  plan: "Thực đơn",
-  kitchens: "Bếp đối tác",
-  journal: "Nhật ký",
-  settings: "Cài đặt"
-};
+import type { CurrentSubscription } from "@/features/settings/settings-api";
 
 export function AppNavigation({
   children,
   view,
   profile,
+  role,
   subscribed,
+  subscription,
   mobileOpen,
   onNavigate,
   onOpenMobile,
@@ -46,7 +40,9 @@ export function AppNavigation({
   children: ReactNode;
   view: View;
   profile: Profile;
+  role: AppRole | null;
   subscribed: boolean;
+  subscription: CurrentSubscription;
   mobileOpen: boolean;
   onNavigate: (view: View) => void;
   onOpenMobile: () => void;
@@ -55,31 +51,22 @@ export function AppNavigation({
   onSubscribe: () => void;
 }) {
   const [signedIn, setSignedIn] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const initials =
-    profile.name === "Bạn"
-      ? "NP"
-      : profile.name
-          .trim()
-          .split(/\s+/)
-          .slice(-2)
-          .map((part) => part[0]?.toLocaleUpperCase("vi"))
-          .join("");
-
-  const submitSearch = () => {
-    const query = searchQuery.trim().toLocaleLowerCase("vi");
-    if (!query) return;
-    if (query.includes("bếp") || query.includes("gói ăn")) {
-      onNavigate("kitchens");
-    } else if (query.includes("nhật ký") || query.includes("đã ăn")) {
-      onNavigate("journal");
-    } else if (query.includes("cài đặt") || query.includes("thanh toán")) {
-      onNavigate("settings");
-    } else {
-      onNavigate("plan");
-    }
-    setSearchQuery("");
-  };
+  const initials = profile.name === "Bạn"
+    ? "NP"
+    : profile.name
+        .trim()
+        .split(/\s+/)
+        .slice(-2)
+        .map((part) => part[0]?.toLocaleUpperCase("vi"))
+        .join("");
+  const remainingDays = subscribed && subscription?.current_period_end
+    ? Math.max(1, Math.ceil((new Date(subscription.current_period_end).getTime() - Date.now()) / 86_400_000))
+    : 0;
+  const membershipDescription = subscribed
+    ? subscription?.provider === "internal_trial"
+      ? `Đang dùng thử · còn ${remainingDays} ngày`
+      : `Plus đang hoạt động · còn ${remainingDays} ngày`
+    : "Recipe chi tiết, nhật ký và phân tích ảnh.";
 
   useEffect(() => {
     let active = true;
@@ -106,62 +93,54 @@ export function AppNavigation({
     <>
       <aside className={`sidebar ${mobileOpen ? "sidebar--open" : ""}`}>
         <div className="brand" onClick={() => onNavigate("home")} role="button" tabIndex={0}>
-          <span className="brand__mark"><Leaf size={21} strokeWidth={2.5} /></span>
+          <span className="brand__mark"><Leaf size={24} strokeWidth={2.5} /></span>
           <span>NutriPlan</span>
         </div>
         <nav className="nav-list" aria-label="Điều hướng chính">
-          <NavButton active={view === "home"} icon={<Home size={19} />} label="Tổng quan" onClick={() => onNavigate("home")} />
-          <NavButton active={view === "plan"} icon={<CalendarDays size={19} />} label="Thực đơn của tôi" onClick={() => onNavigate("plan")} />
-          <NavButton active={view === "kitchens"} icon={<ChefHat size={19} />} label="Bếp đối tác" onClick={() => onNavigate("kitchens")} />
-          <NavButton active={view === "journal"} icon={<BarChart3 size={19} />} label="Nhật ký dinh dưỡng" onClick={() => onNavigate("journal")} />
-          <NavButton active={view === "settings"} icon={<Settings size={19} />} label="Cài đặt" onClick={() => onNavigate("settings")} />
+          <NavButton active={view === "home"} icon={<Home size={21} />} label="Tổng quan" onClick={() => onNavigate("home")} />
+          <NavButton active={view === "plan"} icon={<CalendarDays size={21} />} label="Thực đơn của tôi" onClick={() => onNavigate("plan")} />
+          <NavButton active={view === "kitchens"} icon={<ChefHat size={21} />} label="Bếp đối tác" onClick={() => onNavigate("kitchens")} />
+          <NavButton active={view === "journal"} icon={<BarChart3 size={21} />} label="Nhật ký dinh dưỡng" onClick={() => onNavigate("journal")} />
+          {(role === "kitchen_staff" || role === "admin") ? <NavButton active={view === "kitchen-management"} icon={<ClipboardList size={21} />} label="Quản lý nhà bếp" onClick={() => onNavigate("kitchen-management")} /> : null}
+          {role === "admin" ? <NavButton active={view === "admin"} icon={<ShieldCheck size={21} />} label="Quản trị hệ thống" onClick={() => onNavigate("admin")} /> : null}
+          <NavButton active={view === "settings"} icon={<Settings size={21} />} label="Cài đặt" onClick={() => onNavigate("settings")} />
         </nav>
         <div className="sidebar__spacer" />
         <div className={`membership-card ${subscribed ? "membership-card--active" : ""}`}>
-          <div className="membership-card__icon">{subscribed ? <Check size={17} /> : <Sparkles size={17} />}</div>
+          <div className="membership-card__icon">{subscribed ? <Check size={20} /> : <Sparkles size={20} />}</div>
           <strong>{subscribed ? "NutriPlan Plus" : "Mở khóa kế hoạch"}</strong>
-          <p>{subscribed ? "Đang dùng thử · còn 7 ngày" : "Recipe chi tiết, nhật ký và phân tích ảnh."}</p>
+          <p>{membershipDescription}</p>
           {!subscribed && <button className="button button--dark button--small" onClick={onSubscribe}>Dùng thử miễn phí</button>}
         </div>
-        <button className="user-chip" onClick={onOpenProfile}>
-          <span className="avatar">{initials}</span>
-          <span><strong>{profile.name}</strong><small>{subscribed ? "Thành viên Plus" : "Tài khoản miễn phí"}</small></span>
-          <ChevronDown size={16} />
-        </button>
+        {signedIn ? (
+          <button className="sidebar-profile" onClick={onOpenProfile}>
+            <span className="sidebar-profile__avatar">{initials}</span>
+            <span>
+              <strong>{profile.name}</strong>
+              <small>{subscribed ? "Thành viên Plus" : "Tài khoản miễn phí"}</small>
+            </span>
+            <ChevronDown size={18} />
+          </button>
+        ) : (
+          <Link className="sidebar-profile sidebar-profile--login" href="/login">
+            <span className="sidebar-profile__avatar"><LogIn size={20} /></span>
+            <span><strong>Đăng nhập</strong><small>Mở hồ sơ cá nhân</small></span>
+          </Link>
+        )}
       </aside>
 
       {mobileOpen && <button className="mobile-backdrop" aria-label="Đóng menu" onClick={onCloseMobile} />}
 
+      <button
+        aria-expanded={mobileOpen}
+        aria-label="Mở menu điều hướng"
+        className="mobile-menu-fab"
+        onClick={onOpenMobile}
+      >
+        <Menu size={23} />
+      </button>
+
       <main className="main-area">
-        <header className="topbar">
-          <button className="icon-button topbar__menu" aria-label="Mở menu" onClick={onOpenMobile}><Menu size={21} /></button>
-          <div className="topbar__context">
-            <div className="topbar__crumb"><span>NutriPlan</span><span>/</span><strong>{viewLabels[view]}</strong></div>
-            <form
-              className="topbar-search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitSearch();
-              }}
-            >
-              <Search size={16} />
-              <input
-                aria-label="Tìm nhanh trong NutriPlan"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Tìm thực đơn, bếp, thanh toán..."
-              />
-            </form>
-          </div>
-          <div className="topbar__actions">
-            <button className="icon-button" aria-label="Thông báo"><Bell size={19} /><span className="notification-dot" /></button>
-            {signedIn ? (
-              <button className="profile-button" onClick={onOpenProfile}><CircleUserRound size={19} /> Hồ sơ <ChevronDown size={15} /></button>
-            ) : (
-              <Link className="profile-button profile-button--link" href="/login"><LogIn size={18} /> Đăng nhập</Link>
-            )}
-          </div>
-        </header>
         {children}
       </main>
     </>

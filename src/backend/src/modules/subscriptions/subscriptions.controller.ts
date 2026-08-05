@@ -37,6 +37,13 @@ export class SubscriptionsController {
   }
 
   @ApiBearerAuth()
+  @Post('trial')
+  @ApiOperation({ summary: 'Kích hoạt một lần dùng thử NutriPlan Plus trong 7 ngày' })
+  trial(@CurrentUser() user: AuthUser) {
+    return this.subscriptions.startTrial(user);
+  }
+
+  @ApiBearerAuth()
   @Post('checkout')
   @ApiOperation({ summary: 'Tạo Stripe Checkout Session cho subscription' })
   checkout(@CurrentUser() user: AuthUser, @Body() dto: CreateSubscriptionCheckoutDto) {

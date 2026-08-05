@@ -9,6 +9,8 @@ export const AiHealthInputSchema = z
     activity_level: z.enum(['sedentary', 'light', 'moderate', 'active', 'very_active']),
     activity_days_per_week: z.number().int().min(0).max(7),
     goal: z.enum(['lose_weight', 'maintain', 'gain_muscle']),
+    target_weight_kg: z.number().min(20).max(400),
+    goal_duration_weeks: z.number().int().min(2).max(104),
     dietary_preferences: z.array(z.string().max(100)).max(20),
     disliked_ingredients: z.array(z.string().max(100)).max(50),
     food_allergies: z.array(z.string().max(100)).max(30),
@@ -50,6 +52,21 @@ export const AiHealthInputSchema = z
         code: 'custom',
         path: ['tdee_kcal'],
         message: 'TDEE phải lớn hơn hoặc bằng BMR',
+      });
+    }
+
+    if (input.goal === 'lose_weight' && input.target_weight_kg >= input.weight_kg) {
+      context.addIssue({
+        code: 'custom',
+        path: ['target_weight_kg'],
+        message: 'Cân nặng đích phải thấp hơn cân nặng hiện tại',
+      });
+    }
+    if (input.goal === 'gain_muscle' && input.target_weight_kg <= input.weight_kg) {
+      context.addIssue({
+        code: 'custom',
+        path: ['target_weight_kg'],
+        message: 'Cân nặng đích phải cao hơn cân nặng hiện tại',
       });
     }
 

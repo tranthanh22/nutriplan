@@ -3,13 +3,16 @@
 import {
   Activity,
   AlertCircle,
+  BedDouble,
   CheckCircle2,
   ChevronDown,
   Droplets,
+  HeartPulse,
   LoaderCircle,
   Moon,
   Save,
   Smile,
+  UtensilsCrossed,
   Zap
 } from "lucide-react";
 import { FormEvent, useEffect, useState, type ReactNode } from "react";
@@ -22,13 +25,53 @@ import {
 
 const SYMPTOMS = ["Không có", "Mệt lả", "Chóng mặt", "Đau đầu", "Đau cơ", "Buồn nôn", "Khó tiêu"];
 
+type EstimateOption = {
+  value: number;
+  title: string;
+  range: string;
+  min: number;
+  max?: number;
+};
+
+const ACTIVITY_DURATION_OPTIONS: EstimateOption[] = [
+  { value: 0, title: "Không vận động", range: "0 phút", min: 0, max: 1 },
+  { value: 10, title: "Rất ít", range: "1–15 phút", min: 1, max: 16 },
+  { value: 30, title: "Nhẹ", range: "16–30 phút", min: 16, max: 31 },
+  { value: 45, title: "Vừa", range: "31–60 phút", min: 31, max: 61 },
+  { value: 90, title: "Nhiều", range: "Trên 60 phút", min: 61 }
+];
+
+const SLEEP_DURATION_OPTIONS: EstimateOption[] = [
+  { value: 4, title: "Rất ít", range: "Dưới 5 giờ", min: 0, max: 5 },
+  { value: 5.5, title: "Ít", range: "Khoảng 5–6 giờ", min: 5, max: 6 },
+  { value: 6.5, title: "Tạm đủ", range: "Khoảng 6–7 giờ", min: 6, max: 7 },
+  { value: 7.5, title: "Đủ", range: "Khoảng 7–8 giờ", min: 7, max: 8.01 },
+  { value: 9, title: "Nhiều", range: "Trên 8 giờ", min: 8.01 }
+];
+
+const WATER_OPTIONS: EstimateOption[] = [
+  { value: 0.35, title: "Rất ít", range: "Dưới 500 ml", min: 0, max: 0.5 },
+  { value: 0.6, title: "Vừa", range: "500–700 ml", min: 0.5, max: 0.8 },
+  { value: 1, title: "Khá", range: "800 ml–1,2 lít", min: 0.8, max: 1.3 },
+  { value: 1.5, title: "Tốt", range: "1,3–1,8 lít", min: 1.3, max: 1.9 },
+  { value: 2.2, title: "Nhiều", range: "Trên 1,8 lít", min: 1.9 }
+];
+
+function normalizeEstimate(value: number, options: EstimateOption[]) {
+  return (
+    options.find(
+      (option) => value >= option.min && (option.max === undefined || value < option.max)
+    )?.value ?? options[0].value
+  );
+}
+
 const DEFAULT_FORM: DailyWellnessInput = {
   activityType: "walking",
   activityMinutes: 30,
   activityIntensity: "light",
   fatigueLevel: 2,
   energyLevel: 3,
-  sleepHours: 7,
+  sleepHours: 7.5,
   sleepQuality: 3,
   stressLevel: 2,
   mood: "good",
@@ -40,16 +83,17 @@ const DEFAULT_FORM: DailyWellnessInput = {
 function recordToForm(record: DailyWellnessRecord): DailyWellnessInput {
   return {
     activityType: record.activity_type,
-    activityMinutes: Number(record.activity_minutes),
+    activityMinutes: normalizeEstimate(Number(record.activity_minutes), ACTIVITY_DURATION_OPTIONS),
     activityIntensity: record.activity_intensity,
     fatigueLevel: Number(record.fatigue_level),
     energyLevel: Number(record.energy_level),
-    sleepHours: Number(record.sleep_hours),
+    sleepHours: normalizeEstimate(Number(record.sleep_hours), SLEEP_DURATION_OPTIONS),
     sleepQuality: Number(record.sleep_quality),
     stressLevel: Number(record.stress_level),
     mood: record.mood,
-    waterLiters:
-      record.water_liters === null ? undefined : Number(record.water_liters),
+    waterLiters: record.water_liters === null
+      ? DEFAULT_FORM.waterLiters
+      : normalizeEstimate(Number(record.water_liters), WATER_OPTIONS),
     symptoms: record.symptoms,
     notes: record.notes ?? ""
   };
@@ -159,77 +203,121 @@ export function DailyWellnessCheckin({
 
       {!loading && open && (
         <form className="daily-checkin__form" onSubmit={(event) => void submit(event)}>
-          <div className="daily-checkin__grid">
-            <label>
-              <span><Activity size={15} /> Hôm nay bạn vận động thế nào?</span>
-              <select value={form.activityType} onChange={(event) => update("activityType", event.target.value as DailyWellnessInput["activityType"])}>
-                <option value="rest">Nghỉ ngơi/không tập</option>
-                <option value="walking">Đi bộ</option>
-                <option value="cardio">Cardio</option>
-                <option value="strength">Tập sức mạnh</option>
-                <option value="sport">Chơi thể thao</option>
-                <option value="mixed">Kết hợp nhiều hoạt động</option>
-              </select>
-            </label>
-            <label>
-              Thời lượng vận động (phút)
-              <input type="number" min={0} max={600} value={form.activityMinutes} onChange={(event) => update("activityMinutes", Number(event.target.value))} />
-            </label>
-            <label>
-              Cường độ
-              <select value={form.activityIntensity} onChange={(event) => update("activityIntensity", event.target.value as DailyWellnessInput["activityIntensity"])}>
-                <option value="rest">Không vận động</option>
-                <option value="light">Nhẹ</option>
-                <option value="moderate">Vừa</option>
-                <option value="high">Cao</option>
-              </select>
-            </label>
-            <ScaleQuestion icon={<Zap size={15} />} label="Bạn có thấy mệt mỏi?" value={form.fatigueLevel} onChange={(value) => update("fatigueLevel", value)} low="Không mệt" high="Rất mệt" />
-            <ScaleQuestion icon={<Smile size={15} />} label="Mức năng lượng hiện tại" value={form.energyLevel} onChange={(value) => update("energyLevel", value)} low="Rất thấp" high="Rất tốt" />
-            <label>
-              <span><Moon size={15} /> Bạn ngủ bao nhiêu giờ?</span>
-              <input type="number" min={0} max={24} step="0.5" value={form.sleepHours} onChange={(event) => update("sleepHours", Number(event.target.value))} />
-            </label>
-            <ScaleQuestion icon={<Moon size={15} />} label="Chất lượng giấc ngủ" value={form.sleepQuality} onChange={(value) => update("sleepQuality", value)} low="Rất kém" high="Rất tốt" />
-            <ScaleQuestion icon={<Zap size={15} />} label="Mức căng thẳng hôm nay" value={form.stressLevel} onChange={(value) => update("stressLevel", value)} low="Thấp" high="Rất cao" />
-            <label>
-              Tâm trạng hôm nay
-              <select value={form.mood} onChange={(event) => update("mood", event.target.value as DailyWellnessInput["mood"])}>
-                <option value="very_low">Rất không tốt</option>
-                <option value="low">Không tốt</option>
-                <option value="neutral">Bình thường</option>
-                <option value="good">Tốt</option>
-                <option value="very_good">Rất tốt</option>
-              </select>
-            </label>
-            <label>
-              <span><Droplets size={15} /> Nước đã uống (lít)</span>
-              <input type="number" min={0} max={10} step="0.1" value={form.waterLiters ?? ""} onChange={(event) => update("waterLiters", event.target.value ? Number(event.target.value) : undefined)} />
-            </label>
-          </div>
-
-          <fieldset className="daily-symptoms">
-            <legend>Hôm nay bạn có dấu hiệu nào không?</legend>
-            <div>
-              {SYMPTOMS.map((symptom) => (
-                <button
-                  aria-pressed={form.symptoms.includes(symptom)}
-                  className={form.symptoms.includes(symptom) ? "is-selected" : ""}
-                  key={symptom}
-                  onClick={() => toggleSymptom(symptom)}
-                  type="button"
-                >
-                  {form.symptoms.includes(symptom) && <CheckCircle2 size={14} />}
-                  {symptom}
-                </button>
-              ))}
+          <CheckinGroup
+            icon={<Activity size={19} />}
+            title="Vận động hôm nay"
+            description="Loại hình, thời lượng và cường độ vận động."
+          >
+            <div className="daily-checkin__group-grid">
+              <label>
+                Bạn vận động thế nào?
+                <select value={form.activityType} onChange={(event) => update("activityType", event.target.value as DailyWellnessInput["activityType"])}>
+                  <option value="rest">Nghỉ ngơi/không tập</option>
+                  <option value="walking">Đi bộ</option>
+                  <option value="cardio">Cardio</option>
+                  <option value="strength">Tập sức mạnh</option>
+                  <option value="sport">Chơi thể thao</option>
+                  <option value="mixed">Kết hợp nhiều hoạt động</option>
+                </select>
+              </label>
+              <label>
+                Cường độ
+                <select value={form.activityIntensity} onChange={(event) => update("activityIntensity", event.target.value as DailyWellnessInput["activityIntensity"])}>
+                  <option value="rest">Không vận động</option>
+                  <option value="light">Nhẹ</option>
+                  <option value="moderate">Vừa</option>
+                  <option value="high">Cao</option>
+                </select>
+              </label>
+              <EstimateQuestion
+                icon={<Activity size={16} />}
+                legend="Thời lượng vận động ước lượng"
+                name="activity-duration"
+                options={ACTIVITY_DURATION_OPTIONS}
+                value={form.activityMinutes}
+                onChange={(value) => update("activityMinutes", value)}
+              />
             </div>
-          </fieldset>
+          </CheckinGroup>
 
-          <label className="daily-checkin__notes">
-            Ghi chú cá nhân (không gửi sang AI trong MVP)
-            <textarea maxLength={500} value={form.notes ?? ""} onChange={(event) => update("notes", event.target.value)} placeholder="Ví dụ: hôm nay ăn muộn, vừa đi công tác…" />
-          </label>
+          <CheckinGroup
+            icon={<HeartPulse size={19} />}
+            title="Thể trạng"
+            description="Đánh giá nhanh cảm giác hiện tại của cơ thể."
+          >
+            <div className="daily-checkin__group-grid">
+              <ScaleQuestion icon={<Zap size={16} />} label="Mức mệt mỏi" value={form.fatigueLevel} onChange={(value) => update("fatigueLevel", value)} low="Không mệt" high="Rất mệt" />
+              <ScaleQuestion icon={<Smile size={16} />} label="Mức năng lượng" value={form.energyLevel} onChange={(value) => update("energyLevel", value)} low="Rất thấp" high="Rất tốt" />
+            </div>
+          </CheckinGroup>
+
+          <CheckinGroup
+            icon={<BedDouble size={19} />}
+            title="Giấc ngủ và tinh thần"
+            description="Giấc ngủ, tâm trạng và mức căng thẳng trong ngày."
+          >
+            <div className="daily-checkin__group-grid">
+              <label>
+                Tâm trạng hôm nay
+                <select value={form.mood} onChange={(event) => update("mood", event.target.value as DailyWellnessInput["mood"])}>
+                  <option value="very_low">Rất không tốt</option>
+                  <option value="low">Không tốt</option>
+                  <option value="neutral">Bình thường</option>
+                  <option value="good">Tốt</option>
+                  <option value="very_good">Rất tốt</option>
+                </select>
+              </label>
+              <EstimateQuestion
+                icon={<Moon size={16} />}
+                legend="Bạn ngủ khoảng bao lâu?"
+                name="sleep-duration"
+                options={SLEEP_DURATION_OPTIONS}
+                value={form.sleepHours}
+                onChange={(value) => update("sleepHours", value)}
+              />
+              <ScaleQuestion icon={<Moon size={16} />} label="Chất lượng giấc ngủ" value={form.sleepQuality} onChange={(value) => update("sleepQuality", value)} low="Rất kém" high="Rất tốt" />
+              <ScaleQuestion icon={<Zap size={16} />} label="Mức căng thẳng" value={form.stressLevel} onChange={(value) => update("stressLevel", value)} low="Thấp" high="Rất cao" />
+            </div>
+          </CheckinGroup>
+
+          <CheckinGroup
+            icon={<UtensilsCrossed size={19} />}
+            title="Nước uống và dấu hiệu"
+            description="Bổ sung các dấu hiệu cần lưu ý cho phân tích hôm nay."
+          >
+            <div className="daily-checkin__group-grid daily-checkin__group-grid--nutrition">
+              <EstimateQuestion
+                icon={<Droplets size={16} />}
+                legend="Hôm nay bạn đã uống khoảng bao nhiêu nước?"
+                name="water-amount"
+                options={WATER_OPTIONS}
+                value={form.waterLiters ?? DEFAULT_FORM.waterLiters ?? 1.5}
+                onChange={(value) => update("waterLiters", value)}
+              />
+              <fieldset className="daily-symptoms">
+                <legend>Bạn có dấu hiệu nào không?</legend>
+                <div>
+                  {SYMPTOMS.map((symptom) => (
+                    <button
+                      aria-pressed={form.symptoms.includes(symptom)}
+                      className={form.symptoms.includes(symptom) ? "is-selected" : ""}
+                      key={symptom}
+                      onClick={() => toggleSymptom(symptom)}
+                      type="button"
+                    >
+                      {form.symptoms.includes(symptom) && <CheckCircle2 size={14} />}
+                      {symptom}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <label className="daily-checkin__notes">
+                Ghi chú thêm <small>Không gửi sang AI trong MVP</small>
+                <textarea maxLength={500} value={form.notes ?? ""} onChange={(event) => update("notes", event.target.value)} placeholder="Ví dụ: hôm nay ăn muộn, vừa đi công tác…" />
+              </label>
+            </div>
+          </CheckinGroup>
+
           {error && <div className="login-error"><AlertCircle size={16} /><span>{error}</span></div>}
           <button className="button button--dark" disabled={saving} type="submit">
             {saving ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}
@@ -238,6 +326,69 @@ export function DailyWellnessCheckin({
         </form>
       )}
     </section>
+  );
+}
+
+function CheckinGroup({
+  icon,
+  title,
+  description,
+  children
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="daily-checkin__group">
+      <header className="daily-checkin__group-header">
+        <span>{icon}</span>
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function EstimateQuestion({
+  icon,
+  legend,
+  name,
+  options,
+  value,
+  onChange
+}: {
+  icon: ReactNode;
+  legend: string;
+  name: string;
+  options: EstimateOption[];
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <fieldset className="estimate-question">
+      <legend>{icon} {legend}</legend>
+      <div className="estimate-question__options">
+        {options.map((option) => (
+          <label className={value === option.value ? "is-selected" : ""} key={option.value}>
+            <input
+              checked={value === option.value}
+              name={name}
+              onChange={() => onChange(option.value)}
+              required
+              type="radio"
+              value={option.value}
+            />
+            <strong>{option.title}</strong>
+            <small>{option.range}</small>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

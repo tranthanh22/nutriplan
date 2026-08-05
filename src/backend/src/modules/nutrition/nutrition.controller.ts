@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateNutritionProfileDto } from './dto/create-nutrition-profile.dto';
+import { GetWeightHistoryQueryDto } from './dto/get-weight-history-query.dto';
 import { NutritionService } from './nutrition.service';
 
 @ApiTags('Nutrition profiles')
@@ -33,6 +34,15 @@ export class NutritionController {
   @ApiOperation({ summary: 'Kiểm tra onboarding và hạn cập nhật hồ sơ 7 ngày' })
   status(@CurrentUser() user: AuthUser) {
     return this.nutrition.getStatus(user);
+  }
+
+  @Get('weight-history')
+  @ApiOperation({ summary: 'Lấy lịch sử cân nặng theo khoảng thời gian' })
+  weightHistory(
+    @CurrentUser() user: AuthUser,
+    @Query() query: GetWeightHistoryQueryDto,
+  ) {
+    return this.nutrition.getWeightHistory(user, query.range);
   }
 
   @Get('versions')

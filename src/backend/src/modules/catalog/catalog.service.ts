@@ -56,14 +56,50 @@ export class CatalogService {
     if (!(await this.subscriptions.hasActive(user))) {
       throw new ForbiddenException('Recipe chi tiết yêu cầu subscription còn hiệu lực');
     }
-    const { data, error } = await this.supabase
-      .createUserClient(user.accessToken)
-      .from('recipes')
-      .select('*, dishes(id, name, slug, image_path)')
-      .eq('dish_id', dishId)
-      .maybeSingle();
-    if (error) throw new InternalServerErrorException(error.message);
-    if (!data) throw new NotFoundException('Không tìm thấy Recipe');
-    return data;
+    const client = this.supabase.createUserClient(user.accessToken);
+    const [recipeResult, dishResult] = await Promise.all([
+      client
+        .from('recipes')
+        .select(
+          'dish_id, instructions, cooking_tips, storage_instructions, safety_notes, version, reviewed_at',
+        )
+        .eq('dish_id', dishId)
+        .maybeSingle(),
+      client
+        .from('dishes')
+        .select(
+          'id, name, slug, image_path, ingredient_summary, prep_time_minutes, cook_time_minutes',
+        )
+        .eq('id', dishId)
+        .eq('status', 'active')
+        .maybeSingle(),
+    ]);
+    if (recipeResult.error) {
+      throw new InternalServerErrorException(recipeResult.error.message);
+    }
+    if (dishResult.error) {
+      throw new InternalServerErrorException(dishResult.error.message);
+    }
+    if (!recipeResult.data || !dishResult.data) {
+      throw new NotFoundException('Không tìm thấy Recipe');
+    }
+
+    const ingredients = String(dishResult.data.ingredient_summary ?? '')
+      .split(',')
+      .map((ingredient) => ingredient.trim())
+      .filter(Boolean);
+
+    return {
+      ...recipeResult.data,
+      ingredients,
+      prep_time_minutes: dishResult.data.prep_time_minutes,
+      cook_time_minutes: dishResult.data.cook_time_minutes,
+      dishes: {
+        id: dishResult.data.id,
+        name: dishResult.data.name,
+        slug: dishResult.data.slug,
+        image_path: dishResult.data.image_path,
+      },
+    };
   }
 }

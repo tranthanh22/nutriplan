@@ -21,6 +21,8 @@ const profile: NutritionProfileRecord = {
   activity_level: 'moderate',
   activity_days_per_week: 4,
   goal: 'maintain',
+  target_weight_kg: 70,
+  goal_duration_weeks: 12,
   dietary_preferences: [],
   disliked_ingredients: [],
   food_allergies: [],

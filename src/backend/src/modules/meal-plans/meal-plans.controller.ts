@@ -12,8 +12,10 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ConfirmMealEatenDto } from './dto/confirm-meal-eaten.dto';
+import { GenerateMenuDayDto } from './dto/generate-menu-day.dto';
 import { MenuRangeQueryDto } from './dto/menu-range-query.dto';
 import { ReplaceMealDto } from './dto/replace-meal.dto';
+import { RequestKitchenMealChangeDto } from './dto/request-kitchen-meal-change.dto';
 import { MealPlansService } from './meal-plans.service';
 
 @ApiTags('Meal plans')
@@ -37,6 +39,15 @@ export class MealPlansController {
     @Query() query: MenuRangeQueryDto,
   ) {
     return this.mealPlans.mine(user, query);
+  }
+
+  @Post('days')
+  @ApiOperation({ summary: 'Tạo thực đơn cá nhân cho một ngày trống (Plus)' })
+  generateDay(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: GenerateMenuDayDto,
+  ) {
+    return this.mealPlans.generateDay(user, dto.plannedDate);
   }
 
   @Get('journal')
@@ -85,5 +96,33 @@ export class MealPlansController {
     @Body() dto: ConfirmMealEatenDto,
   ) {
     return this.mealPlans.confirmKitchenMeal(user, dailyOrderId, dto);
+  }
+
+  @Post('kitchen/items/:dailyOrderItemId/confirm-eaten')
+  @ApiOperation({ summary: 'Xác nhận đã ăn từng món bếp và ghi Meal Log' })
+  confirmKitchenMealItem(
+    @CurrentUser() user: AuthUser,
+    @Param('dailyOrderItemId', ParseUUIDPipe) dailyOrderItemId: string,
+    @Body() dto: ConfirmMealEatenDto,
+  ) {
+    return this.mealPlans.confirmKitchenMealItem(
+      user,
+      dailyOrderItemId,
+      dto,
+    );
+  }
+
+  @Post('kitchen/items/:dailyOrderItemId/change-requests')
+  @ApiOperation({ summary: 'Khách hàng yêu cầu bếp đổi món chưa chuẩn bị' })
+  requestKitchenMealChange(
+    @CurrentUser() user: AuthUser,
+    @Param('dailyOrderItemId', ParseUUIDPipe) dailyOrderItemId: string,
+    @Body() dto: RequestKitchenMealChangeDto,
+  ) {
+    return this.mealPlans.requestKitchenMealChange(
+      user,
+      dailyOrderItemId,
+      dto,
+    );
   }
 }

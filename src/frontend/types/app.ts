@@ -3,7 +3,11 @@ export type View =
   | "plan"
   | "kitchens"
   | "journal"
-  | "settings";
+  | "settings"
+  | "kitchen-management"
+  | "admin";
+
+export type AppRole = "customer" | "kitchen_staff" | "admin";
 
 export type Profile = {
   name: string;
@@ -13,6 +17,8 @@ export type Profile = {
   weight: number;
   activity: number;
   goal: "lose" | "maintain" | "gain";
+  targetWeight: number;
+  goalDurationWeeks: number;
   allergies: string;
 };
 

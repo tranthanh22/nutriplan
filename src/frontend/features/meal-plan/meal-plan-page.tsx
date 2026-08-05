@@ -3,24 +3,27 @@
 import Image from "next/image";
 import {
   AlertCircle,
-  ArrowLeft,
   ArrowRight,
+  CalendarPlus,
+  CalendarDays,
   Check,
   ChefHat,
   LoaderCircle,
   LockKeyhole,
+  MessageSquarePlus,
   RefreshCw,
   Repeat2,
   Sparkles
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MacroRow } from "@/components/ui/nutrition-widgets";
 import type { Meal } from "@/lib/data";
 import type { JournalEntry } from "@/types/app";
 import {
   backendLogToJournal,
-  confirmKitchenMeal,
+  confirmKitchenMealItem,
   confirmPersonalMeal,
+  generatePersonalMenuDay,
   getMyMenus,
   personalMealItemToMeal
 } from "./meal-plan-api";
@@ -29,7 +32,10 @@ import type {
   MyMenusResponse,
   PersonalMealItem
 } from "./meal-plan-types";
+import { MenuCalendar, type MenuCalendarDay } from "./menu-calendar";
+import { KitchenMealChangeModal } from "./kitchen-meal-change-modal";
 import { ReplacementModal } from "./replacement-modal";
+import { resolveFigmaMealImage } from "@/lib/figma-assets";
 
 const mealLabels = {
   breakfast: "Sáng",
@@ -44,6 +50,17 @@ const mealTimes = {
   dinner: "18:30",
   snack: "15:30"
 } as const;
+
+function personalMealLabel(item: PersonalMealItem) {
+  if (item.dishes.dish_kind === "drink") return "Đồ uống";
+  if (item.dishes.dish_kind === "snack") return "Bữa nhẹ";
+  return mealLabels[item.meal_type];
+}
+
+function personalMealTime(item: PersonalMealItem) {
+  if (item.dishes.dish_kind === "drink") return "16:30";
+  return mealTimes[item.meal_type];
+}
 
 function formatDate(date: string, options?: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat("vi-VN", {
@@ -63,9 +80,35 @@ function kitchenStatus(status: KitchenMeal["status"]) {
   return labels[status];
 }
 
+function kitchenDishStatus(status: KitchenMeal["status"]) {
+  if (status === "scheduled" || status === "accepted") return "Đã lên lịch";
+  if (status === "preparing") return "Đang chuẩn bị";
+  if (status === "out_for_delivery") return "Đang giao";
+  return "Đã được giao";
+}
+
 function relativeDeviation(value: number, target: number) {
   if (target <= 0) return value === 0 ? 0 : 1;
   return Math.abs(value - target) / target;
+}
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function monthStart(value: string) {
+  return `${value.slice(0, 7)}-01`;
+}
+
+function monthRange(month: string) {
+  const start = new Date(`${month}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  end.setUTCDate(0);
+  return { from: month, to: end.toISOString().slice(0, 10) };
 }
 
 export function MealPlanPage({
@@ -83,18 +126,26 @@ export function MealPlanPage({
 }) {
   const [menus, setMenus] = useState<MyMenusResponse | null>(null);
   const [source, setSource] = useState<"personal" | "kitchen">("personal");
-  const [dayIndex, setDayIndex] = useState(0);
+  const [calendarMonth, setCalendarMonth] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
   const [replacementItem, setReplacementItem] =
     useState<PersonalMealItem | null>(null);
+  const [kitchenChangeItem, setKitchenChangeItem] = useState<{
+    item: KitchenMeal["daily_order_items"][number];
+    kitchenName: string;
+  } | null>(null);
   const [confirmingId, setConfirmingId] = useState("");
+  const [generatingDate, setGeneratingDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const dayDetailRef = useRef<HTMLElement | null>(null);
 
   const loadMenus = useCallback(async () => {
+    if (!calendarMonth) return;
     setLoading(true);
     setError("");
     try {
-      setMenus(await getMyMenus());
+      setMenus(await getMyMenus(monthRange(calendarMonth)));
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -104,6 +155,10 @@ export function MealPlanPage({
     } finally {
       setLoading(false);
     }
+  }, [calendarMonth]);
+
+  useEffect(() => {
+    setCalendarMonth(monthStart(localDateKey()));
   }, []);
 
   useEffect(() => {
@@ -112,24 +167,66 @@ export function MealPlanPage({
 
   const plan = menus?.personalPlan ?? null;
   const hasActiveSubscription = menus?.subscriptionActive ?? subscribed;
-  const dates = useMemo(() => {
-    if (!plan) return [];
-    const result: string[] = [];
-    const cursor = new Date(`${plan.start_date}T00:00:00.000Z`);
-    const end = new Date(`${plan.end_date}T00:00:00.000Z`);
-    while (cursor <= end) {
-      result.push(cursor.toISOString().slice(0, 10));
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
+  const personalCalendarDays = useMemo<MenuCalendarDay[]>(() => {
+    const grouped = new Map<string, PersonalMealItem[]>();
+    for (const item of plan?.meal_plan_items ?? []) {
+      const items = grouped.get(item.planned_date) ?? [];
+      items.push(item);
+      grouped.set(item.planned_date, items);
     }
-    return result;
+    return Array.from(grouped.entries()).map(([date, items]) => ({
+      date,
+      itemCount: items.length,
+      completedCount: items.filter((item) => item.consumption_status === "eaten").length
+    }));
   }, [plan]);
-  const selectedDate = dates[dayIndex] ?? dates[0] ?? "";
+  const kitchenCalendarDays = useMemo<MenuCalendarDay[]>(() => {
+    const grouped = new Map<string, KitchenMeal[]>();
+    for (const meal of menus?.kitchenMeals ?? []) {
+      const meals = grouped.get(meal.delivery_date) ?? [];
+      meals.push(meal);
+      grouped.set(meal.delivery_date, meals);
+    }
+    return Array.from(grouped.entries()).map(([date, meals]) => ({
+      date,
+      itemCount: meals.length,
+      completedCount: meals.filter(
+        (meal) =>
+          meal.daily_order_items.length > 0 &&
+          meal.daily_order_items.every((item) =>
+            meal.meal_log_entries.some(
+              (entry) => entry.daily_order_item_id === item.id
+            )
+          )
+      ).length,
+      kitchenCount: new Set(meals.map((meal) => meal.kitchens.id)).size
+    }));
+  }, [menus]);
+  const calendarDays = source === "personal" ? personalCalendarDays : kitchenCalendarDays;
+
+  useEffect(() => {
+    if (!calendarMonth) return;
+    const availableDates = calendarDays
+      .map((day) => day.date)
+      .filter((date) => date.startsWith(calendarMonth.slice(0, 7)))
+      .sort();
+    setSelectedDate((current) => {
+      if (availableDates.includes(current)) return current;
+      const today = localDateKey();
+      return availableDates.includes(today) ? today : (availableDates[0] ?? "");
+    });
+  }, [calendarDays, calendarMonth]);
+
   const dayMeals = useMemo(
     () =>
       (plan?.meal_plan_items ?? [])
         .filter((item) => item.planned_date === selectedDate)
         .sort((a, b) => a.sequence_no - b.sequence_no),
     [plan, selectedDate]
+  );
+  const selectedKitchenMeals = useMemo(
+    () => (menus?.kitchenMeals ?? []).filter((meal) => meal.delivery_date === selectedDate),
+    [menus, selectedDate]
   );
   const totals = useMemo(
     () =>
@@ -165,6 +262,23 @@ export function MealPlanPage({
       )
     : 0;
 
+  function changeMonth(offset: number) {
+    if (offset === 0) {
+      setCalendarMonth(monthStart(localDateKey()));
+      return;
+    }
+    const next = new Date(`${calendarMonth}T00:00:00.000Z`);
+    next.setUTCMonth(next.getUTCMonth() + offset);
+    setCalendarMonth(next.toISOString().slice(0, 10));
+  }
+
+  function selectCalendarDate(date: string) {
+    setSelectedDate(date);
+    window.requestAnimationFrame(() => {
+      dayDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   async function confirmPersonal(item: PersonalMealItem) {
     setConfirmingId(item.id);
     setError("");
@@ -183,11 +297,28 @@ export function MealPlanPage({
     }
   }
 
-  async function confirmKitchen(meal: KitchenMeal) {
-    setConfirmingId(meal.id);
+  async function generateDay(date: string) {
+    setGeneratingDate(date);
     setError("");
     try {
-      const log = await confirmKitchenMeal(meal.id);
+      await generatePersonalMenuDay(date);
+      await loadMenus();
+    } catch (generateError) {
+      setError(
+        generateError instanceof Error
+          ? generateError.message
+          : "Không thể tạo thực đơn cho ngày này."
+      );
+    } finally {
+      setGeneratingDate("");
+    }
+  }
+
+  async function confirmKitchenItem(itemId: string) {
+    setConfirmingId(itemId);
+    setError("");
+    try {
+      const log = await confirmKitchenMealItem(itemId);
       onLogCreated(backendLogToJournal(log));
       await loadMenus();
     } catch (confirmError) {
@@ -279,22 +410,16 @@ export function MealPlanPage({
 
       {source === "personal" && plan && (
         <>
-          <div className="day-tabs">
-            {dates.map((date, index) => (
-              <button
-                key={date}
-                className={index === dayIndex ? "active" : ""}
-                onClick={() => setDayIndex(index)}
-              >
-                <span>
-                  {formatDate(date, { weekday: "short" }).replace("Th ", "T")}
-                </span>
-                <strong>{formatDate(date, { day: "2-digit" })}</strong>
-              </button>
-            ))}
-          </div>
+          <MenuCalendar
+            month={calendarMonth}
+            source="personal"
+            days={personalCalendarDays}
+            selectedDate={selectedDate}
+            onMonthChange={changeMonth}
+            onSelectDate={selectCalendarDate}
+          />
 
-          <section className="plan-layout">
+          {selectedDate && dayMeals.length > 0 ? <section className="plan-layout menu-day-detail" ref={dayDetailRef}>
             <div className="plan-list">
               <div className="section-heading">
                 <div>
@@ -320,8 +445,8 @@ export function MealPlanPage({
                     key={item.id}
                   >
                     <div className="plan-item__time">
-                      <span>{mealLabels[item.meal_type]}</span>
-                      <small>{mealTimes[item.meal_type]}</small>
+                      <span>{personalMealLabel(item)}</span>
+                      <small>{personalMealTime(item)}</small>
                     </div>
                     <div className="plan-item__image">
                       {item.dishes.image_path ? (
@@ -409,89 +534,199 @@ export function MealPlanPage({
                 </div>
               </div>
             </aside>
-          </section>
+          </section> : selectedDate ? (
+            <section className="menu-calendar-empty menu-day-detail" ref={dayDetailRef}>
+              <CalendarDays size={29} />
+              <h3>{formatDate(selectedDate, { weekday: "long", day: "numeric", month: "long" })}</h3>
+              <p>
+                Tạo đề xuất cân bằng gồm ba bữa chính, một bữa nhẹ và một đồ uống.
+              </p>
+              {hasActiveSubscription ? (
+                <button
+                  className="button button--primary"
+                  disabled={Boolean(generatingDate)}
+                  onClick={() => void generateDay(selectedDate)}
+                >
+                  {generatingDate === selectedDate ? (
+                    <LoaderCircle className="spin" size={17} />
+                  ) : (
+                    <CalendarPlus size={17} />
+                  )}
+                  Tạo thực đơn ngày này
+                </button>
+              ) : (
+                <button className="button button--primary" onClick={onSubscribe}>
+                  Đăng ký Plus để tạo
+                </button>
+              )}
+            </section>
+          ) : (
+            <div className="menu-calendar-empty">
+              <CalendarDays size={29} />
+              <h3>Chưa có thực đơn cá nhân trong tháng này</h3>
+              <p>Chọn một ngày trên lịch để xem hoặc điều chỉnh thực đơn.</p>
+            </div>
+          )}
         </>
       )}
 
       {source === "kitchen" && menus && (
-        <section className="kitchen-menu-section">
-          <div className="section-heading">
-            <div>
-              <span className="section-kicker">GÓI BẾP ĐANG THEO</span>
-              <h2>Lịch món từ bếp đối tác</h2>
+        <>
+          <MenuCalendar
+            month={calendarMonth}
+            source="kitchen"
+            days={kitchenCalendarDays}
+            selectedDate={selectedDate}
+            onMonthChange={changeMonth}
+            onSelectDate={selectCalendarDate}
+          />
+          <section className="kitchen-menu-section menu-day-detail" ref={dayDetailRef}>
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">GÓI BẾP ĐANG THEO</span>
+                <h2>
+                  {selectedDate
+                    ? `Lịch ăn ${formatDate(selectedDate, { day: "numeric", month: "long" })}`
+                    : "Lịch món từ bếp đối tác"}
+                </h2>
+              </div>
             </div>
-          </div>
-          {menus.kitchenMeals.length === 0 ? (
-            <div className="kitchen-menu-empty">
-              <ChefHat size={30} />
-              <h3>Bạn chưa có thực đơn bếp trong tuần này</h3>
-              <p>
-                Sau khi mua gói bếp và lịch giao được tạo, từng suất ăn sẽ xuất
-                hiện tại đây.
-              </p>
-            </div>
-          ) : (
-            <div className="kitchen-menu-list">
-              {menus.kitchenMeals.map((meal) => {
-                const eaten = meal.meal_log_entries.length > 0;
-                const totals = meal.daily_order_items.reduce(
-                  (sum, item) => ({
-                    calories: sum.calories + Number(item.calories_kcal),
-                    protein: sum.protein + Number(item.protein_g)
-                  }),
-                  { calories: 0, protein: 0 }
-                );
-                return (
-                  <article className="kitchen-menu-item" key={meal.id}>
-                    <div className="kitchen-menu-item__date">
-                      <strong>{formatDate(meal.delivery_date, { day: "2-digit" })}</strong>
-                      <span>{formatDate(meal.delivery_date, { month: "short" })}</span>
-                    </div>
-                    <div>
-                      <span className="section-kicker">
-                        {meal.kitchens.name} · {mealLabels[meal.meal_type]}
-                      </span>
-                      <h3>
-                        {meal.daily_order_items
-                          .map((item) => item.dish_name)
-                          .join(", ")}
-                      </h3>
-                      <p>
-                        {Math.round(totals.calories)} kcal ·{" "}
-                        {Math.round(totals.protein)}g protein ·{" "}
-                        {kitchenStatus(meal.status)}
-                      </p>
-                    </div>
-                    {eaten ? (
-                      <span className="eaten-tag"><Check size={13} /> Đã ăn</span>
-                    ) : (
-                      <button
-                        className="button button--dark button--small"
-                        disabled={
-                          meal.status !== "delivered" ||
-                          !hasActiveSubscription ||
-                          Boolean(confirmingId)
-                        }
-                        onClick={() => void confirmKitchen(meal)}
-                      >
-                        {confirmingId === meal.id ? (
-                          <LoaderCircle className="spin" size={16} />
-                        ) : (
-                          <Check size={16} />
-                        )}
-                        {meal.status === "delivered"
-                          ? hasActiveSubscription
-                            ? "Xác nhận đã ăn"
-                            : "Cần Plus để ghi"
-                          : kitchenStatus(meal.status)}
-                      </button>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
+            {selectedKitchenMeals.length === 0 ? (
+              <div className="kitchen-menu-empty">
+                <ChefHat size={30} />
+                <h3>
+                  {selectedDate
+                    ? `${formatDate(selectedDate, { weekday: "long", day: "numeric", month: "long" })} chưa có lịch ăn`
+                    : "Chưa có lịch ăn từ bếp trong tháng này"}
+                </h3>
+                <p>
+                  Sau khi mua gói và bếp tạo lịch phục vụ, các ngày có suất ăn
+                  sẽ được đánh dấu trực tiếp trên lịch.
+                </p>
+              </div>
+            ) : (
+              <div className="kitchen-menu-list">
+                {selectedKitchenMeals.map((meal) => {
+                  const totals = meal.daily_order_items.reduce(
+                    (sum, item) => ({
+                      calories: sum.calories + Number(item.calories_kcal),
+                      protein: sum.protein + Number(item.protein_g)
+                    }),
+                    { calories: 0, protein: 0 }
+                  );
+                  return (
+                    <article className="kitchen-menu-item" key={meal.id}>
+                      <header className="kitchen-menu-item__header">
+                        <div className="kitchen-menu-item__date">
+                          <strong>{formatDate(meal.delivery_date, { day: "2-digit" })}</strong>
+                          <span>{formatDate(meal.delivery_date, { month: "short" })}</span>
+                        </div>
+                        <div>
+                          <span className="section-kicker">
+                            {meal.kitchens.name} · {mealLabels[meal.meal_type]}
+                          </span>
+                          <h3>{kitchenStatus(meal.status)}</h3>
+                          <p>{Math.round(totals.calories)} kcal · {Math.round(totals.protein)}g protein</p>
+                        </div>
+                        <span className={`kitchen-meal-status kitchen-meal-status--${meal.status}`}>
+                          {kitchenDishStatus(meal.status)}
+                        </span>
+                      </header>
+                      <div className="kitchen-menu-item__dishes">
+                        {meal.daily_order_items.map((item) => {
+                          const latestRequest = [...(item.kitchen_meal_change_requests ?? [])]
+                            .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+                          const pending = latestRequest?.status === "pending";
+                          const approved = latestRequest?.status === "approved";
+                          const canRequest = ["scheduled", "accepted"].includes(meal.status);
+                          const eaten = meal.meal_log_entries.some(
+                            (entry) => entry.daily_order_item_id === item.id
+                          );
+                          return (
+                            <div className="kitchen-dish-card" key={item.id}>
+                              <div className="kitchen-dish-card__image">
+                                <Image
+                                  src={resolveFigmaMealImage(item.dish_name, item.image_path)}
+                                  alt={item.dish_name}
+                                  fill
+                                  sizes="180px"
+                                />
+                              </div>
+                              <div className="kitchen-dish-card__body">
+                                <div>
+                                  <h4>{item.dish_name}</h4>
+                                  <span>{Number(item.servings).toFixed(1)} khẩu phần</span>
+                                </div>
+                                <div className="kitchen-dish-card__macros">
+                                  <span><strong>{Math.round(Number(item.calories_kcal))}</strong> kcal</span>
+                                  <span><strong>{Math.round(Number(item.protein_g))}g</strong> Protein</span>
+                                  <span><strong>{Math.round(Number(item.carbs_g))}g</strong> Carb</span>
+                                  <span><strong>{Math.round(Number(item.fat_g))}g</strong> Chất béo</span>
+                                </div>
+                                <div className="kitchen-dish-card__ingredients">
+                                  <strong>Nguyên liệu sử dụng</strong>
+                                  <div>
+                                    {(item.ingredient_snapshot ?? []).map((ingredient) => (
+                                      <span key={ingredient}>{ingredient}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="kitchen-dish-card__status-row">
+                                  <span className={`kitchen-meal-status kitchen-meal-status--${meal.status}`}>
+                                    {kitchenDishStatus(meal.status)}
+                                  </span>
+                                  {eaten ? <span className="eaten-tag"><Check size={13} /> Đã ăn</span> : null}
+                                </div>
+                                {latestRequest ? (
+                                  <p className={`change-request-status change-request-status--${latestRequest.status}`}>
+                                    {latestRequest.status === "pending"
+                                      ? "Bếp đang xem yêu cầu đổi món"
+                                      : latestRequest.status === "approved"
+                                        ? "Bếp đã chấp nhận yêu cầu đổi món"
+                                        : latestRequest.status === "rejected"
+                                          ? `Bếp chưa thể đổi món${latestRequest.response_note ? `: ${latestRequest.response_note}` : ""}`
+                                          : "Yêu cầu đổi đã hủy"}
+                                  </p>
+                                ) : null}
+                                <div className="kitchen-dish-card__actions">
+                                  <button
+                                    className="button button--dark button--small"
+                                    disabled={eaten || meal.status !== "delivered" || !hasActiveSubscription || Boolean(confirmingId)}
+                                    title={!hasActiveSubscription ? "Cần gói Plus để ghi vào nhật ký" : undefined}
+                                    onClick={() => void confirmKitchenItem(item.id)}
+                                  >
+                                    {confirmingId === item.id
+                                      ? <LoaderCircle className="spin" size={16} />
+                                      : <Check size={16} />}
+                                    Đã ăn
+                                  </button>
+                                  <button
+                                    className="button button--outline button--small"
+                                    disabled={!canRequest || pending || approved}
+                                    onClick={() => setKitchenChangeItem({ item, kitchenName: meal.kitchens.name })}
+                                  >
+                                    <MessageSquarePlus size={15} />
+                                    {pending
+                                      ? "Đã gửi yêu cầu"
+                                      : approved
+                                        ? "Bếp đã đồng ý đổi"
+                                        : canRequest
+                                          ? "Yêu cầu đổi món"
+                                          : "Đã quá giờ đổi"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
       )}
 
       {replacementItem && (
@@ -500,6 +735,17 @@ export function MealPlanPage({
           onClose={() => setReplacementItem(null)}
           onReplaced={() => {
             setReplacementItem(null);
+            void loadMenus();
+          }}
+        />
+      )}
+      {kitchenChangeItem && (
+        <KitchenMealChangeModal
+          item={kitchenChangeItem.item}
+          kitchenName={kitchenChangeItem.kitchenName}
+          onClose={() => setKitchenChangeItem(null)}
+          onRequested={() => {
+            setKitchenChangeItem(null);
             void loadMenus();
           }}
         />

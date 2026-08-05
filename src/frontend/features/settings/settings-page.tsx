@@ -85,6 +85,7 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
       )
     );
   }, [active, subscription]);
+  const trialing = active && subscription?.provider === "internal_trial";
   const needsLogin = error.toLowerCase().includes("đăng nhập");
 
   async function saveName(event: FormEvent<HTMLFormElement>) {
@@ -213,12 +214,12 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
             <div className={`subscription-summary ${active ? "is-active" : ""}`}>
               <div>
                 <span className="subscription-summary__status">
-                  {active ? "ĐANG HOẠT ĐỘNG" : "TÀI KHOẢN MIỄN PHÍ"}
+                  {trialing ? "ĐANG DÙNG THỬ" : active ? "ĐANG HOẠT ĐỘNG" : "TÀI KHOẢN MIỄN PHÍ"}
                 </span>
                 <h3>{active ? subscription?.subscription_plans?.name ?? "NutriPlan Plus" : "NutriPlan Free"}</h3>
                 <p>
                   {active
-                    ? `Còn ${remainingDays} ngày · hiệu lực đến ${formatDate(subscription?.current_period_end)}`
+                    ? `${trialing ? "Dùng thử" : "Còn"} ${remainingDays} ngày · hiệu lực đến ${formatDate(subscription?.current_period_end)}`
                     : "Nâng cấp để xem recipe chi tiết và sử dụng đầy đủ AI Insight."}
                 </p>
               </div>

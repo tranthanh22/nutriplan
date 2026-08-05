@@ -3,6 +3,7 @@
 import { AlertCircle, ArrowRight, CheckCircle2, CreditCard, LoaderCircle, LockKeyhole, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import type { CurrentSubscription } from "@/features/settings/settings-api";
 
 type SubscriptionPlan = {
   id: string;
@@ -36,11 +37,20 @@ function readError(payload: unknown) {
   return Array.isArray(message) ? message.join(", ") : typeof message === "string" ? message : "Không thể tạo phiên thanh toán.";
 }
 
-export function SubscriptionModal({ onClose }: { onClose: () => void }) {
+export function SubscriptionModal({
+  hasActiveAccess,
+  onActivated,
+  onClose
+}: {
+  hasActiveAccess: boolean;
+  onActivated: (subscription: NonNullable<CurrentSubscription>) => void;
+  onClose: () => void;
+}) {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [startingTrial, setStartingTrial] = useState(false);
   const [error, setError] = useState("");
   const idempotencyKey = useRef("");
 
@@ -65,6 +75,24 @@ export function SubscriptionModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   const selectedPlan = plans.find((plan) => plan.id === selectedId) ?? null;
+
+  async function startTrial() {
+    setStartingTrial(true);
+    setError("");
+    try {
+      const response = await fetch("/api/subscriptions/trial", { method: "POST" });
+      const payload: unknown = await response.json().catch(() => null);
+      if (response.status === 401) {
+        window.location.assign(`/login?next=${encodeURIComponent("/app")}`);
+        return;
+      }
+      if (!response.ok) throw new Error(readError(payload));
+      onActivated(payload as NonNullable<CurrentSubscription>);
+    } catch (trialError) {
+      setError(trialError instanceof Error ? trialError.message : "Không thể kích hoạt dùng thử.");
+      setStartingTrial(false);
+    }
+  }
 
   async function checkout() {
     if (!selectedPlan) return;
@@ -124,6 +152,19 @@ export function SubscriptionModal({ onClose }: { onClose: () => void }) {
           <div><CheckCircle2 /><span><strong>Làm mới mỗi tuần</strong><small>Nhận kế hoạch mới khi gói còn hiệu lực</small></span></div>
         </div>
 
+        {!hasActiveAccess ? (
+          <div className="subscription-trial-card">
+            <div>
+              <strong>Dùng thử Plus 7 ngày</strong>
+              <span>Không cần thẻ · chỉ áp dụng một lần cho mỗi tài khoản</span>
+            </div>
+            <button className="button button--dark" disabled={startingTrial || checkingOut} onClick={() => void startTrial()}>
+              {startingTrial ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}
+              {startingTrial ? "Đang kích hoạt…" : "Bắt đầu dùng thử"}
+            </button>
+          </div>
+        ) : null}
+
         {loading && <div className="subscription-loading"><LoaderCircle className="spin" /><span>Đang tải bảng giá…</span></div>}
         {!loading && plans.length > 0 && <div className="subscription-options" aria-label="Chọn thời hạn subscription">
           {plans.map((plan) => (
@@ -138,7 +179,7 @@ export function SubscriptionModal({ onClose }: { onClose: () => void }) {
 
         {selectedPlan && <div className="subscription-price"><div><strong>{formatPrice(selectedPlan.price_amount, selectedPlan.currency)}</strong><span> / {planDuration(selectedPlan)}</span></div><small>Kế hoạch làm mới mỗi 7 ngày · Không bao gồm tiền món bếp</small></div>}
         {error && <div className="subscription-error"><AlertCircle size={17} /><span>{error}</span></div>}
-        <button className="button button--cream button--full" disabled={!selectedPlan || checkingOut} onClick={() => void checkout()}>
+        <button className="button button--cream button--full" disabled={!selectedPlan || checkingOut || startingTrial} onClick={() => void checkout()}>
           {checkingOut ? <LoaderCircle className="spin" size={18} /> : <LockKeyhole size={18} />}
           {checkingOut ? "Đang mở cổng thanh toán…" : selectedPlan ? `Thanh toán gói ${planDuration(selectedPlan)}` : "Chọn một gói"}
           {!checkingOut && <ArrowRight size={18} />}

@@ -7,6 +7,7 @@ export type PlanDish = {
   short_description: string | null;
   image_path: string | null;
   prep_time_minutes: number | null;
+  dish_kind: "meal" | "snack" | "drink";
 };
 
 export type PersonalMealItem = {
@@ -55,13 +56,29 @@ export type KitchenMeal = {
     id: string;
     dish_id: string | null;
     dish_name: string;
+    image_path: string | null;
+    ingredient_snapshot: string[];
     servings: number | string;
     calories_kcal: number | string;
     protein_g: number | string;
     carbs_g: number | string;
     fat_g: number | string;
+    kitchen_meal_change_requests: KitchenMealChangeRequest[];
   }>;
-  meal_log_entries: Array<{ id: string; consumed_at: string }>;
+  meal_log_entries: Array<{
+    id: string;
+    daily_order_item_id: string | null;
+    consumed_at: string;
+  }>;
+};
+
+export type KitchenMealChangeRequest = {
+  id: string;
+  reason: "allergy_concern" | "dislike" | "diet_preference" | "other";
+  note: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  response_note: string | null;
+  created_at: string;
 };
 
 export type BackendJournalEntry = {
@@ -74,6 +91,7 @@ export type BackendJournalEntry = {
   protein_g: number | string;
   carbs_g: number | string;
   fat_g: number | string;
+  daily_order_item_id?: string | null;
 };
 
 export type MyMenusResponse = {

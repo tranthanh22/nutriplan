@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException, NotFoundException } from '@ne
 import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { SupabaseService } from '../../database/supabase.service';
 import { CreateNutritionProfileDto } from './dto/create-nutrition-profile.dto';
+import { WeightHistoryRange } from './dto/get-weight-history-query.dto';
 import { NutritionCalculatorService } from './nutrition-calculator.service';
 import type { NutritionProfileRecord } from './nutrition-profile.interface';
 
@@ -84,7 +85,7 @@ export class NutritionService {
   async create(user: AuthUser, dto: CreateNutritionProfileDto) {
     const result = this.calculator.calculate(dto);
     const { data, error } = await this.supabase.createUserClient(user.accessToken).rpc(
-      'replace_current_nutrition_profile',
+      'replace_current_nutrition_profile_v2',
       {
         p_gender: dto.gender,
         p_birth_date: dto.birthDate,
@@ -93,6 +94,8 @@ export class NutritionService {
         p_activity_level: dto.activityLevel,
         p_activity_days_per_week: dto.activityDaysPerWeek,
         p_goal: dto.goal,
+        p_target_weight_kg: dto.targetWeightKg,
+        p_goal_duration_weeks: dto.goalDurationWeeks,
         p_dietary_preferences: dto.dietaryPreferences,
         p_disliked_ingredients: dto.dislikedIngredients,
         p_food_allergies: dto.foodAllergies,
@@ -109,6 +112,56 @@ export class NutritionService {
       },
     );
     if (error) throw new InternalServerErrorException(error.message);
+
+    const { error: progressError } = await this.supabase
+      .createUserClient(user.accessToken)
+      .from('progress_entries')
+      .upsert(
+        {
+          user_id: user.id,
+          recorded_on: this.localDateKey(),
+          weight_kg: dto.weightKg,
+        },
+        { onConflict: 'user_id,recorded_on' },
+      );
+    if (progressError) throw new InternalServerErrorException(progressError.message);
+
     return data;
+  }
+
+  async getWeightHistory(user: AuthUser, range: WeightHistoryRange) {
+    let query = this.supabase
+      .createUserClient(user.accessToken)
+      .from('progress_entries')
+      .select('id, recorded_on, weight_kg, created_at, updated_at')
+      .eq('user_id', user.id)
+      .order('recorded_on', { ascending: true });
+
+    const startDate = this.getWeightRangeStart(range);
+    if (startDate) query = query.gte('recorded_on', startDate);
+
+    const { data, error } = await query;
+    if (error) throw new InternalServerErrorException(error.message);
+    return { range, entries: data ?? [] };
+  }
+
+  private getWeightRangeStart(range: WeightHistoryRange) {
+    if (range === WeightHistoryRange.All) return null;
+
+    const date = new Date(`${this.localDateKey()}T00:00:00+07:00`);
+    if (range === WeightHistoryRange.SevenDays) date.setDate(date.getDate() - 6);
+    if (range === WeightHistoryRange.OneMonth) date.setMonth(date.getMonth() - 1);
+    if (range === WeightHistoryRange.ThreeMonths) date.setMonth(date.getMonth() - 3);
+    if (range === WeightHistoryRange.OneYear) date.setFullYear(date.getFullYear() - 1);
+    return this.localDateKey(date);
+  }
+
+  private localDateKey(date = new Date()) {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
   }
 }

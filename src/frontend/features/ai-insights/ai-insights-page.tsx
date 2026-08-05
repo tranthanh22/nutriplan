@@ -9,7 +9,6 @@ import {
   Lightbulb,
   LoaderCircle,
   LogIn,
-  RefreshCw,
   ShieldAlert,
   ShieldCheck
 } from "lucide-react";
@@ -37,7 +36,7 @@ function errorGuidance(error: BackendApiError) {
   return error.message;
 }
 
-export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () => void }) {
+export function AiInsightDashboardCard() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -52,7 +51,7 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
 
   const dailyCheckinSaved = useCallback(() => {
     setInsight(null);
-    setNotice("Đã lưu check-in hôm nay. AI Insight tiếp theo sẽ dùng các câu trả lời mới này.");
+    setNotice("");
   }, []);
 
   const loadLatest = useCallback(async (quiet = false) => {
@@ -65,7 +64,7 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
     } catch (requestError) {
       if (requestError instanceof BackendApiError && requestError.status === 404) {
         setInsight(null);
-        setNotice("Chưa có insight nào. Bạn có thể tạo phân tích đầu tiên từ hồ sơ dinh dưỡng hiện hành.");
+        setNotice("");
       } else {
         setError(requestError instanceof BackendApiError ? errorGuidance(requestError) : "Không thể kết nối API.");
       }
@@ -139,32 +138,25 @@ export function AiInsightDashboardCard({ onEditProfile }: { onEditProfile: () =>
       {notice && <div className="insight-alert"><ShieldCheck size={19} /><div><strong>Trạng thái</strong><span>{notice}</span></div></div>}
 
       {user && (
-        <>
-          <DailyWellnessCheckin
-            onStatusChange={updateDailyCheckinStatus}
-            onSaved={dailyCheckinSaved}
-          />
-          <div className="insight-action-card insight-action-card--controls">
-            <div>
-              <strong>Insight theo trạng thái hôm nay</strong>
-              <small>
-                {dailyCheckinComplete
-                  ? "Check-in đã sẵn sàng để phân tích cùng hồ sơ dinh dưỡng."
-                  : "Hãy hoàn tất check-in phía trên trước khi yêu cầu AI phân tích."}
-              </small>
-            </div>
-            <div className="insight-action-card__buttons">
-              <button className="button button--outline" disabled={loading} onClick={() => void loadLatest()}><RefreshCw size={17} className={loading ? "spin" : ""} /> Làm mới</button>
-              <button className="button button--dark" disabled={loading || !dailyCheckinComplete} onClick={() => void createInsight()}>{loading ? <LoaderCircle size={17} className="spin" /> : <BrainCircuit size={17} />}{loading ? "Đang phân tích..." : "Nhận Insight hôm nay"}</button>
-            </div>
-          </div>
-        </>
+        <DailyWellnessCheckin
+          onStatusChange={updateDailyCheckinStatus}
+          onSaved={dailyCheckinSaved}
+        />
       )}
 
       {insight?.status === "processing" && <div className="insight-processing"><LoaderCircle className="spin" size={22} /><div><strong>AI đang xử lý insight</strong><span>Thử làm mới lại sau {insight.retryAfterSeconds ?? 3} giây.</span></div></div>}
       {insight?.requiresSubscription && <InsightPreview insight={insight} />}
       {insight?.insight && <InsightDetail insight={insight.insight} generatedAt={insight.generatedAt} safetyStatus={insight.safetyStatus} />}
-      {user && !insight && !loading && !error && !notice && <div className="insight-empty"><Lightbulb size={26} /><h3>Insight của bạn sẽ xuất hiện ở đây</h3><p>Hãy bảo đảm hồ sơ dinh dưỡng đã được lưu trước khi chọn “Nhận AI Insight”.</p><button className="link-button" onClick={onEditProfile}>Cập nhật hồ sơ <ChevronRight size={15} /></button></div>}
+      {user && !insight && !loading && !error && !notice && (
+        <div className="insight-empty">
+          <Lightbulb size={28} />
+          <h3>Chưa có phân tích sức khỏe</h3>
+          <p>{dailyCheckinComplete ? "Dữ liệu hôm nay đã sẵn sàng. Tạo phân tích đầu tiên ngay bây giờ." : "Hoàn tất check-in nhanh phía trên để AI có đủ dữ liệu phân tích hôm nay."}</p>
+          <button className="button button--dark" disabled={!dailyCheckinComplete} onClick={() => void createInsight()}>
+            <BrainCircuit size={17} /> Tạo phân tích ngay
+          </button>
+        </div>
+      )}
     </section>
   );
 }

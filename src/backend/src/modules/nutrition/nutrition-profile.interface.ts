@@ -9,6 +9,8 @@ export interface NutritionProfileRecord {
   activity_level: string;
   activity_days_per_week: number;
   goal: string;
+  target_weight_kg: number | string;
+  goal_duration_weeks: number;
   dietary_preferences: string[];
   disliked_ingredients: string[];
   food_allergies: string[];

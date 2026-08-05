@@ -90,6 +90,70 @@ export class SubscriptionsService {
     );
   }
 
+  async startTrial(user: AuthUser) {
+    const current = await this.current(user);
+    if (
+      current &&
+      ['active', 'cancel_at_period_end'].includes(String(current.status)) &&
+      current.current_period_end &&
+      new Date(String(current.current_period_end)) > new Date()
+    ) {
+      return current;
+    }
+
+    const admin = this.supabase.getAdminClient();
+    const { data: previousTrial, error: previousTrialError } = await admin
+      .from('subscriptions')
+      .select('id, status, current_period_end')
+      .eq('user_id', user.id)
+      .eq('provider', 'internal_trial')
+      .limit(1)
+      .maybeSingle();
+    if (previousTrialError) {
+      throw new InternalServerErrorException(previousTrialError.message);
+    }
+    if (previousTrial) {
+      throw new ForbiddenException('Tài khoản này đã sử dụng gói dùng thử 7 ngày');
+    }
+
+    const { data: plan, error: planError } = await admin
+      .from('subscription_plans')
+      .select('id')
+      .eq('code', 'weekly')
+      .eq('is_active', true)
+      .maybeSingle();
+    if (planError) throw new InternalServerErrorException(planError.message);
+    if (!plan) {
+      throw new ServiceUnavailableException('Chưa cấu hình gói dùng thử 7 ngày');
+    }
+
+    const periodStart = new Date();
+    const periodEnd = new Date(periodStart.getTime() + 7 * 86_400_000);
+    const { data: trial, error: trialError } = await admin
+      .from('subscriptions')
+      .insert({
+        user_id: user.id,
+        plan_id: plan.id,
+        status: 'active',
+        provider: 'internal_trial',
+        provider_subscription_id: `trial:${user.id}`,
+        current_period_start: periodStart.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        activated_at: periodStart.toISOString(),
+      })
+      .select('*, subscription_plans(*)')
+      .single();
+    if (trialError) {
+      if (trialError.code === '23505') {
+        throw new ForbiddenException(
+          'Tài khoản đã có gói Plus hoặc đã sử dụng gói dùng thử',
+        );
+      }
+      throw new InternalServerErrorException(trialError.message);
+    }
+    return trial;
+  }
+
   async createCheckout(user: AuthUser, dto: CreateSubscriptionCheckoutDto) {
     const admin = this.supabase.getAdminClient();
     const { data, error } = await admin.rpc('create_subscription_checkout', {

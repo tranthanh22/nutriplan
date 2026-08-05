@@ -208,3 +208,77 @@ describe('SubscriptionsService Stripe checkout', () => {
     });
   });
 });
+
+describe('SubscriptionsService free trial', () => {
+  it('creates one server-backed seven-day trial without a payment', async () => {
+    const insertedTrial = {
+      id: '55555555-5555-4555-8555-555555555555',
+      status: 'active',
+      provider: 'internal_trial',
+      current_period_end: '2026-08-12T00:00:00.000Z',
+    };
+    const previousTrialQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    const insertSingle = jest.fn().mockResolvedValue({
+      data: insertedTrial,
+      error: null,
+    });
+    const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
+    const insert = jest.fn().mockReturnValue({ select: insertSelect });
+    const subscriptionsTable = { ...previousTrialQuery, insert };
+    const planQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: { id: '66666666-6666-4666-8666-666666666666' },
+        error: null,
+      }),
+    };
+    const from = jest.fn((table: string) =>
+      table === 'subscriptions' ? subscriptionsTable : planQuery,
+    );
+    const service = new SubscriptionsService(
+      { getAdminClient: jest.fn().mockReturnValue({ from }) } as never,
+      createConfig(),
+    );
+    jest.spyOn(service, 'current').mockResolvedValue(null);
+
+    await expect(service.startTrial(user)).resolves.toEqual(insertedTrial);
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: user.id,
+        status: 'active',
+        provider: 'internal_trial',
+        provider_subscription_id: `trial:${user.id}`,
+        current_period_start: expect.any(String),
+        current_period_end: expect.any(String),
+      }),
+    );
+  });
+
+  it('does not allow the same account to start a second trial', async () => {
+    const previousTrialQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: { id: '55555555-5555-4555-8555-555555555555', status: 'expired' },
+        error: null,
+      }),
+    };
+    const from = jest.fn().mockReturnValue(previousTrialQuery);
+    const service = new SubscriptionsService(
+      { getAdminClient: jest.fn().mockReturnValue({ from }) } as never,
+      createConfig(),
+    );
+    jest.spyOn(service, 'current').mockResolvedValue(null);
+
+    await expect(service.startTrial(user)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});

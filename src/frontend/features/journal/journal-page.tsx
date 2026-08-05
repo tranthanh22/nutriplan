@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { ArrowRight, Camera, LockKeyhole, Utensils } from "lucide-react";
+import { useEffect, useState } from "react";
 import { ProgressRing } from "@/components/ui/nutrition-widgets";
 import type { ConsumedNutrition, JournalEntry, NutritionSummary } from "@/types/app";
 
@@ -19,6 +20,23 @@ export function JournalPage({
   onSubscribe: () => void;
 }) {
   const adherence = Math.min(100, Math.round((consumed.calories / nutrition.target) * 100));
+  const [today, setToday] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const updateToday = () => setToday(new Date());
+    updateToday();
+    const timer = window.setInterval(updateToday, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const todayLabel = today
+    ? new Intl.DateTimeFormat("vi-VN", {
+        day: "2-digit",
+        month: "long"
+      })
+        .format(today)
+        .toLocaleUpperCase("vi-VN")
+    : "HÔM NAY";
 
   return (
     <div className="page-content">
@@ -44,9 +62,18 @@ export function JournalPage({
       <section className={`journal-layout ${!subscribed ? "journal-layout--muted" : ""}`}>
         <div className="journal-list-card">
           <div className="section-heading">
-            <div><span className="section-kicker">15 THÁNG 7</span><h2>Meal Log hôm nay</h2></div>
+            <div><span className="section-kicker">{todayLabel}</span><h2>Meal Log hôm nay</h2></div>
             <span className="status-pill"><span /> {journal.length} bữa đã ghi</span>
           </div>
+          {journal.length === 0 && (
+            <div className="dashboard-menu-state dashboard-menu-state--empty">
+              <Utensils size={24} />
+              <div>
+                <h3>Chưa có bữa ăn nào hôm nay</h3>
+                <p>Xác nhận một món trong thực đơn để nhật ký được cập nhật ngay.</p>
+              </div>
+            </div>
+          )}
           {journal.map((entry) => (
             <article className="journal-entry" key={entry.id}>
               {entry.image ? (

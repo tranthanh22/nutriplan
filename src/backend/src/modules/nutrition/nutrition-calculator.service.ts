@@ -25,11 +25,15 @@ export class NutritionCalculatorService {
     const genderOffset = input.gender === Gender.Male ? 5 : -161;
     const bmr = 10 * input.weightKg + 6.25 * input.heightCm - 5 * age + genderOffset;
     const tdee = bmr * ACTIVITY_FACTORS[input.activityLevel];
+    this.validateWeightGoal(input);
+    const weeklyWeightDelta =
+      (input.targetWeightKg - input.weightKg) / input.goalDurationWeeks;
+    const estimatedDailyAdjustment = (weeklyWeightDelta * 7700) / 7;
     const calorieAdjustment =
       input.goal === NutritionGoal.LoseWeight
-        ? -350
+        ? Math.max(-750, Math.min(-200, estimatedDailyAdjustment))
         : input.goal === NutritionGoal.GainMuscle
-          ? 300
+          ? Math.max(150, Math.min(500, estimatedDailyAdjustment))
           : 0;
     const targetCalories = Math.max(1200, tdee + calorieAdjustment);
     const protein = input.weightKg * (input.goal === NutritionGoal.GainMuscle ? 2 : 1.8);
@@ -45,8 +49,38 @@ export class NutritionCalculatorService {
       targetCarbsG: this.round(carbs),
       targetFatG: this.round(fat),
       formulaCode: 'mifflin_st_jeor',
-      formulaVersion: 'mifflin-st-jeor-v1',
+      formulaVersion: 'mifflin-st-jeor-goal-pace-v2',
+      targetWeightKg: input.targetWeightKg,
+      goalDurationWeeks: input.goalDurationWeeks,
+      plannedWeeklyWeightChangeKg: this.round(weeklyWeightDelta),
     };
+  }
+
+  private validateWeightGoal(input: CreateNutritionProfileDto) {
+    if (
+      input.goal === NutritionGoal.LoseWeight &&
+      input.targetWeightKg >= input.weightKg
+    ) {
+      throw new BadRequestException(
+        'Mục tiêu giảm cân phải thấp hơn cân nặng hiện tại',
+      );
+    }
+    if (
+      input.goal === NutritionGoal.GainMuscle &&
+      input.targetWeightKg <= input.weightKg
+    ) {
+      throw new BadRequestException(
+        'Mục tiêu tăng cơ phải cao hơn cân nặng hiện tại',
+      );
+    }
+    if (
+      input.goal === NutritionGoal.Maintain &&
+      Math.abs(input.targetWeightKg - input.weightKg) > 0.5
+    ) {
+      throw new BadRequestException(
+        'Mục tiêu duy trì chỉ được lệch tối đa 0.5 kg',
+      );
+    }
   }
 
   private getAge(birthDate: string) {

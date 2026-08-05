@@ -11,6 +11,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import type { ConfirmMealEatenDto } from './dto/confirm-meal-eaten.dto';
 import type { MenuRangeQueryDto } from './dto/menu-range-query.dto';
 import type { ReplaceMealDto } from './dto/replace-meal.dto';
+import type { RequestKitchenMealChangeDto } from './dto/request-kitchen-meal-change.dto';
 
 @Injectable()
 export class MealPlansService {
@@ -69,6 +70,18 @@ export class MealPlansService {
       range,
       entries: await this.getJournal(user, range.from, range.to),
     };
+  }
+
+  async generateDay(user: AuthUser, plannedDate: string) {
+    await this.requireSubscription(user);
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .rpc('ensure_personal_meal_plan_day', {
+        p_user_id: user.id,
+        p_planned_date: plannedDate,
+      });
+    if (error) this.throwRpcError(error.message);
+    return data;
   }
 
   async replacements(user: AuthUser, itemId: string) {
@@ -130,6 +143,73 @@ export class MealPlansService {
     return data;
   }
 
+  async confirmKitchenMealItem(
+    user: AuthUser,
+    dailyOrderItemId: string,
+    dto: ConfirmMealEatenDto,
+  ) {
+    await this.requireSubscription(user);
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .rpc('confirm_kitchen_meal_item_eaten', {
+        p_user_id: user.id,
+        p_daily_order_item_id: dailyOrderItemId,
+        p_consumed_at: dto.consumedAt ?? new Date().toISOString(),
+      });
+    if (error) this.throwRpcError(error.message);
+    return data;
+  }
+
+  async requestKitchenMealChange(
+    user: AuthUser,
+    dailyOrderItemId: string,
+    dto: RequestKitchenMealChangeDto,
+  ) {
+    const admin = this.supabase.getAdminClient();
+    const { data: item, error: itemError } = await admin
+      .from('daily_order_items')
+      .select(
+        'id, daily_order_id, dish_name, daily_orders!inner(user_id, kitchen_id, status)',
+      )
+      .eq('id', dailyOrderItemId)
+      .maybeSingle();
+    if (itemError) throw new InternalServerErrorException(itemError.message);
+    if (!item) throw new NotFoundException('Không tìm thấy món của bếp');
+
+    const dailyOrder = Array.isArray(item.daily_orders)
+      ? item.daily_orders[0]
+      : item.daily_orders;
+    if (!dailyOrder || String(dailyOrder.user_id) !== user.id) {
+      throw new NotFoundException('Không tìm thấy món của bếp');
+    }
+    if (!['scheduled', 'accepted'].includes(String(dailyOrder.status))) {
+      throw new BadRequestException(
+        'Bếp đã bắt đầu chuẩn bị nên không thể yêu cầu đổi món',
+      );
+    }
+
+    const { data, error } = await admin
+      .from('kitchen_meal_change_requests')
+      .insert({
+        daily_order_id: item.daily_order_id,
+        daily_order_item_id: item.id,
+        user_id: user.id,
+        kitchen_id: dailyOrder.kitchen_id,
+        current_dish_name: item.dish_name,
+        reason: dto.reason,
+        note: dto.note?.trim() || null,
+      })
+      .select(
+        'id, daily_order_item_id, reason, note, status, created_at, response_note',
+      )
+      .single();
+    if (error?.code === '23505') {
+      throw new BadRequestException('Bạn đã gửi yêu cầu đổi cho món này');
+    }
+    if (error) throw new InternalServerErrorException(error.message);
+    return data;
+  }
+
   private async requireSubscription(user: AuthUser) {
     if (!(await this.subscriptions.hasActive(user))) {
       throw new ForbiddenException(
@@ -156,7 +236,7 @@ export class MealPlansService {
           id, planned_date, meal_type, sequence_no, servings,
           calories_kcal, protein_g, carbs_g, fat_g,
           is_replacement, consumption_status, consumed_at,
-          dishes(id, name, slug, short_description, image_path, prep_time_minutes)
+          dishes(id, name, slug, short_description, image_path, prep_time_minutes, dish_kind)
         )`,
       )
       .eq('status', 'active')
@@ -176,10 +256,13 @@ export class MealPlansService {
         delivery_window_end, delivered_at,
         kitchens(id, name, slug, logo_path),
         daily_order_items(
-          id, dish_id, dish_name, servings,
-          calories_kcal, protein_g, carbs_g, fat_g
+          id, dish_id, dish_name, image_path, ingredient_snapshot, servings,
+          calories_kcal, protein_g, carbs_g, fat_g,
+          kitchen_meal_change_requests(
+            id, reason, note, status, response_note, created_at
+          )
         ),
-        meal_log_entries(id, consumed_at)`,
+        meal_log_entries(id, daily_order_item_id, consumed_at)`,
       )
       .gte('delivery_date', from)
       .lte('delivery_date', to)
@@ -196,8 +279,10 @@ export class MealPlansService {
   }
 
   private async getJournal(user: AuthUser, from: string, to: string) {
-    const start = `${from}T00:00:00.000Z`;
-    const end = new Date(`${to}T00:00:00.000Z`);
+    // Nhật ký trên giao diện được nhóm theo ngày Việt Nam (UTC+7), không theo
+    // múi giờ UTC của server Vercel.
+    const start = new Date(`${from}T00:00:00.000+07:00`).toISOString();
+    const end = new Date(`${to}T00:00:00.000+07:00`);
     end.setUTCDate(end.getUTCDate() + 1);
     const { data, error } = await this.supabase
       .createUserClient(user.accessToken)
@@ -205,7 +290,7 @@ export class MealPlansService {
       .select(
         `id, source, consumed_at, meal_type, name, servings,
         calories_kcal, protein_g, carbs_g, fat_g, is_user_confirmed,
-        dish_id, meal_plan_item_id, daily_order_id`,
+        dish_id, meal_plan_item_id, daily_order_id, daily_order_item_id`,
       )
       .gte('consumed_at', start)
       .lt('consumed_at', end.toISOString())
@@ -248,13 +333,24 @@ export class MealPlansService {
     }
     if (
       message.includes('meal_plan_item_not_found') ||
-      message.includes('daily_order_not_found')
+      message.includes('daily_order_not_found') ||
+      message.includes('daily_order_item_not_found')
     ) {
       throw new NotFoundException('Không tìm thấy bữa ăn');
     }
     if (message.includes('replacement_not_nutritionally_safe')) {
       throw new BadRequestException(
         'Món thay thế không còn phù hợp với mục tiêu dinh dưỡng ngày',
+      );
+    }
+    if (message.includes('meal_plan_day_already_consumed')) {
+      throw new BadRequestException(
+        'Không thể tạo lại ngày đã có bữa ăn được xác nhận',
+      );
+    }
+    if (message.includes('insufficient_safe_dishes')) {
+      throw new BadRequestException(
+        'Chưa có đủ món an toàn với dị ứng của bạn để tạo thực đơn ngày này',
       );
     }
     if (message.includes('kitchen_meal_not_delivered')) {

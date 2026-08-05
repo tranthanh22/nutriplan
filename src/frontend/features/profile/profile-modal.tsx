@@ -3,6 +3,7 @@
 import { AlertCircle, LoaderCircle, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { NumberInput } from "@/components/ui/number-input";
 import type { Profile } from "@/types/app";
 
 export function ProfileModal({
@@ -46,11 +47,11 @@ export function ProfileModal({
           <label>Họ tên<input value={form.name} onChange={(event) => update("name", event.target.value)} required /></label>
           <div className="form-grid">
             <label>Giới tính<select value={form.gender} onChange={(event) => update("gender", event.target.value as Profile["gender"])}><option value="female">Nữ</option><option value="male">Nam</option></select></label>
-            <label>Tuổi<input type="number" value={form.age} onChange={(event) => update("age", Number(event.target.value))} min={16} max={80} /></label>
+            <label>Tuổi<NumberInput value={form.age} onValueChange={(value) => { if (value !== undefined) update("age", value); }} min={16} max={80} required /></label>
           </div>
           <div className="form-grid">
-            <label>Chiều cao (cm)<input type="number" value={form.height} onChange={(event) => update("height", Number(event.target.value))} min={80} max={250} /></label>
-            <label>Cân nặng (kg)<input type="number" value={form.weight} onChange={(event) => update("weight", Number(event.target.value))} min={20} max={400} step="0.1" /></label>
+            <label>Chiều cao (cm)<NumberInput value={form.height} onValueChange={(value) => { if (value !== undefined) update("height", value); }} min={80} max={250} required /></label>
+            <label>Cân nặng (kg)<NumberInput value={form.weight} onValueChange={(value) => { if (value !== undefined) update("weight", value); }} min={20} max={400} step="0.1" required /></label>
           </div>
           <label>Mức vận động<select value={form.activity} onChange={(event) => update("activity", Number(event.target.value))}><option value={1.2}>Ít vận động</option><option value={1.375}>Nhẹ · 1–3 buổi/tuần</option><option value={1.55}>Vừa · 3–5 buổi/tuần</option><option value={1.725}>Cao · 6–7 buổi/tuần</option></select></label>
           <label>Mục tiêu<select value={form.goal} onChange={(event) => update("goal", event.target.value as Profile["goal"])}><option value="lose">Giảm mỡ lành mạnh</option><option value="maintain">Duy trì cân nặng</option><option value="gain">Tăng cơ</option></select></label>

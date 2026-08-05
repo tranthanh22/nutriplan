@@ -18,6 +18,8 @@ describe('NutritionCalculatorService', () => {
     activityLevel: ActivityLevel.Moderate,
     activityDaysPerWeek: 4,
     goal: NutritionGoal.Maintain,
+    targetWeightKg: 70,
+    goalDurationWeeks: 12,
     dietaryPreferences: [],
     dislikedIngredients: [],
     foodAllergies: [],
@@ -39,9 +41,11 @@ describe('NutritionCalculatorService', () => {
     const weightLoss = service.calculate({
       ...baseInput,
       goal: NutritionGoal.LoseWeight,
+      targetWeightKg: 65,
     });
 
-    expect(weightLoss.targetCaloriesKcal).toBe(maintain.targetCaloriesKcal - 350);
+    expect(weightLoss.targetCaloriesKcal).toBeLessThan(maintain.targetCaloriesKcal);
+    expect(weightLoss.plannedWeeklyWeightChangeKg).toBeCloseTo(-0.42, 2);
   });
 
   it('rejects users younger than the supported MVP age', () => {
@@ -78,6 +82,12 @@ describe('NutritionCalculatorService', () => {
         goal,
         heightCm,
         weightKg,
+        targetWeightKg:
+          goal === NutritionGoal.LoseWeight
+            ? weightKg - 3
+            : goal === NutritionGoal.GainMuscle
+              ? weightKg + 3
+              : weightKg,
       });
 
       expect(result.bmrKcal).toBeGreaterThan(500);

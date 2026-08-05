@@ -6,6 +6,7 @@ export type UserSettings = {
 export type CurrentSubscription = {
   id: string;
   status: string;
+  provider: string | null;
   current_period_start: string | null;
   current_period_end: string | null;
   subscription_plans: {

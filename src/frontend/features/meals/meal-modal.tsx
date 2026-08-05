@@ -1,8 +1,9 @@
 import Image from "next/image";
 import { AlertCircle, Check, LoaderCircle, LockKeyhole, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Metric } from "@/components/ui/nutrition-widgets";
+import { getDishRecipe, type DishRecipe } from "@/features/meal-plan/meal-plan-api";
 import type { Meal } from "@/lib/data";
 
 export function MealModal({
@@ -20,7 +21,38 @@ export function MealModal({
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [recipe, setRecipe] = useState<DishRecipe | null>(null);
+  const [recipeError, setRecipeError] = useState("");
+  const [recipeLoading, setRecipeLoading] = useState(subscribed);
   const eaten = meal.consumptionStatus === "eaten";
+
+  useEffect(() => {
+    if (!subscribed) {
+      setRecipe(null);
+      setRecipeLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setRecipe(null);
+    setRecipeError("");
+    setRecipeLoading(true);
+    void getDishRecipe(meal.id, controller.signal)
+      .then(setRecipe)
+      .catch((loadError: unknown) => {
+        if (controller.signal.aborted) return;
+        setRecipeError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Không thể tải công thức của món này."
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setRecipeLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [meal.id, subscribed]);
 
   async function addMeal() {
     setSaving(true);
@@ -57,16 +89,37 @@ export function MealModal({
             <Metric label="Chất béo" value={`${meal.fat}`} unit="g" />
           </div>
           {subscribed ? (
-            <div className="recipe-grid">
-              <div>
-                <span className="section-kicker">NGUYÊN LIỆU · 1 KHẨU PHẦN</span>
-                <ul className="check-list">{meal.ingredients.map((item) => <li key={item}><Check size={15} /> {item}</li>)}</ul>
+            recipeLoading ? (
+              <div className="recipe-loading">
+                <LoaderCircle className="spin" size={22} /> Đang tải công thức…
               </div>
-              <div>
-                <span className="section-kicker">CÁCH LÀM · {meal.prepTime} PHÚT</span>
-                <ol className="step-list">{meal.instructions.map((item, index) => <li key={item}><span>{index + 1}</span><p>{item}</p></li>)}</ol>
+            ) : recipeError ? (
+              <div className="login-error">
+                <AlertCircle size={17} /><span>{recipeError}</span>
               </div>
-            </div>
+            ) : recipe ? (
+              <div className="recipe-grid">
+                <div>
+                  <span className="section-kicker">NGUYÊN LIỆU · 1 KHẨU PHẦN</span>
+                  <ul className="check-list">
+                    {recipe.ingredients.map((item) => (
+                      <li key={item}><Check size={15} /> {item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className="section-kicker">
+                    CÁCH LÀM · {(recipe.prep_time_minutes ?? meal.prepTime) + (recipe.cook_time_minutes ?? 0)} PHÚT
+                  </span>
+                  <ol className="step-list">
+                    {recipe.instructions.map((item, index) => (
+                      <li key={`${index}-${item}`}><span>{index + 1}</span><p>{item}</p></li>
+                    ))}
+                  </ol>
+                  {recipe.cooking_tips ? <p className="recipe-note"><strong>Mẹo:</strong> {recipe.cooking_tips}</p> : null}
+                </div>
+              </div>
+            ) : null
           ) : (
             <div className="inline-paywall">
               <LockKeyhole size={26} />

@@ -8,6 +8,17 @@ import type {
   ReplacementCandidate
 } from "./meal-plan-types";
 
+export type DishRecipe = {
+  dish_id: string;
+  ingredients: string[];
+  instructions: string[];
+  cooking_tips: string | null;
+  storage_instructions: string | null;
+  safety_notes: string | null;
+  prep_time_minutes: number | null;
+  cook_time_minutes: number | null;
+};
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -32,13 +43,23 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-export function getMyMenus() {
-  return requestJson<MyMenusResponse>("/api/meal-plans/mine");
+export function getMyMenus(range?: { from: string; to: string }) {
+  const query = range
+    ? `?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
+    : "";
+  return requestJson<MyMenusResponse>(`/api/meal-plans/mine${query}`);
 }
 
 export function getReplacementCandidates(itemId: string) {
   return requestJson<ReplacementCandidate[]>(
     `/api/meal-plans/items/${encodeURIComponent(itemId)}/replacements`
+  );
+}
+
+export function generatePersonalMenuDay(plannedDate: string) {
+  return requestJson<{ planId: string; plannedDate: string; itemCount: number }>(
+    "/api/meal-plans/days",
+    { method: "POST", body: JSON.stringify({ plannedDate }) }
   );
 }
 
@@ -56,16 +77,36 @@ export function confirmPersonalMeal(itemId: string) {
   );
 }
 
-export function confirmKitchenMeal(dailyOrderId: string) {
+export function confirmKitchenMealItem(dailyOrderItemId: string) {
   return requestJson<BackendJournalEntry>(
-    `/api/meal-plans/kitchen/${encodeURIComponent(dailyOrderId)}/confirm-eaten`,
+    `/api/meal-plans/kitchen/items/${encodeURIComponent(dailyOrderItemId)}/confirm-eaten`,
     { method: "POST", body: JSON.stringify({}) }
   );
 }
 
-export function getNutritionJournal() {
+export function requestKitchenMealChange(
+  dailyOrderItemId: string,
+  input: { reason: string; note?: string }
+) {
+  return requestJson(
+    `/api/meal-plans/kitchen/items/${encodeURIComponent(dailyOrderItemId)}/change-requests`,
+    { method: "POST", body: JSON.stringify(input) }
+  );
+}
+
+export function getNutritionJournal(date?: string) {
+  const query = date
+    ? `?from=${encodeURIComponent(date)}&to=${encodeURIComponent(date)}`
+    : "";
   return requestJson<{ entries: BackendJournalEntry[] }>(
-    "/api/meal-plans/journal"
+    `/api/meal-plans/journal${query}`
+  );
+}
+
+export function getDishRecipe(dishId: string, signal?: AbortSignal) {
+  return requestJson<DishRecipe>(
+    `/api/dishes/${encodeURIComponent(dishId)}/recipe`,
+    { signal }
   );
 }
 
@@ -84,7 +125,14 @@ export function personalMealItemToMeal(item: PersonalMealItem): Meal {
     instructions: ["Mở Recipe để xem hướng dẫn chuẩn bị từng bước."],
     tags: item.is_replacement
       ? ["Món đã thay", "Cân bằng dinh dưỡng"]
-      : ["Kế hoạch cá nhân"],
+      : [
+          "Kế hoạch cá nhân",
+          item.dishes.dish_kind === "drink"
+            ? "Đồ uống"
+            : item.dishes.dish_kind === "snack"
+              ? "Bữa nhẹ"
+              : "Bữa chính"
+        ],
     mealPlanItemId: item.id,
     consumptionStatus: item.consumption_status
   };
