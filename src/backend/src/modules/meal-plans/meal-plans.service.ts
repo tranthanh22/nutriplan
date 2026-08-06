@@ -72,6 +72,98 @@ export class MealPlansService {
     };
   }
 
+  async journalEntryDetail(user: AuthUser, entryId: string) {
+    const client = this.supabase.createUserClient(user.accessToken);
+    const { data: entry, error: entryError } = await client
+      .from('meal_log_entries')
+      .select(
+        `id, user_id, source, consumed_at, meal_type, name, servings,
+        calories_kcal, protein_g, carbs_g, fat_g, notes,
+        dish_id, daily_order_item_id`,
+      )
+      .eq('id', entryId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (entryError) {
+      throw new InternalServerErrorException(entryError.message);
+    }
+    if (!entry) {
+      throw new NotFoundException('Không tìm thấy món trong nhật ký');
+    }
+
+    let imagePath: string | null = null;
+    let description: string | null = entry.notes;
+    let ingredients: string[] = [];
+    let instructions: string[] = [];
+    let cookingTips: string | null = null;
+
+    if (entry.source === 'kitchen' && entry.daily_order_item_id) {
+      const { data: kitchenItem, error: kitchenItemError } = await client
+        .from('daily_order_items')
+        .select('dish_name, image_path, ingredient_snapshot')
+        .eq('id', entry.daily_order_item_id)
+        .maybeSingle();
+      if (kitchenItemError) {
+        throw new InternalServerErrorException(kitchenItemError.message);
+      }
+      if (kitchenItem) {
+        imagePath = kitchenItem.image_path;
+        ingredients = this.toStringArray(kitchenItem.ingredient_snapshot);
+        description = description ?? 'Món được chuẩn bị bởi bếp đối tác.';
+      }
+    } else if (entry.dish_id) {
+      const [dishResult, recipeResult] = await Promise.all([
+        client
+          .from('dishes')
+          .select('short_description, ingredient_summary, image_path')
+          .eq('id', entry.dish_id)
+          .maybeSingle(),
+        client
+          .from('recipes')
+          .select('instructions, cooking_tips')
+          .eq('dish_id', entry.dish_id)
+          .maybeSingle(),
+      ]);
+      if (dishResult.error) {
+        throw new InternalServerErrorException(dishResult.error.message);
+      }
+      if (recipeResult.error) {
+        throw new InternalServerErrorException(recipeResult.error.message);
+      }
+      if (dishResult.data) {
+        imagePath = dishResult.data.image_path;
+        description = description ?? dishResult.data.short_description;
+        ingredients = String(dishResult.data.ingredient_summary ?? '')
+          .split(',')
+          .map((ingredient) => ingredient.trim())
+          .filter(Boolean);
+      }
+      if (recipeResult.data) {
+        instructions = this.toStringArray(recipeResult.data.instructions);
+        cookingTips = recipeResult.data.cooking_tips;
+      }
+    }
+
+    return {
+      id: entry.id,
+      source: entry.source,
+      consumed_at: entry.consumed_at,
+      meal_type: entry.meal_type,
+      name: entry.name,
+      servings: Number(entry.servings),
+      calories_kcal: Number(entry.calories_kcal),
+      protein_g: Number(entry.protein_g),
+      carbs_g: Number(entry.carbs_g),
+      fat_g: Number(entry.fat_g),
+      image_path: imagePath,
+      description,
+      ingredients,
+      instructions,
+      cooking_tips: cookingTips,
+    };
+  }
+
   async generateDay(user: AuthUser, plannedDate: string) {
     await this.requireSubscription(user);
     const { data, error } = await this.supabase
@@ -236,7 +328,14 @@ export class MealPlansService {
           id, planned_date, meal_type, sequence_no, servings,
           calories_kcal, protein_g, carbs_g, fat_g,
           is_replacement, consumption_status, consumed_at,
-          dishes(id, name, slug, short_description, image_path, prep_time_minutes, dish_kind)
+          dishes(
+            id, name, slug, short_description, image_path, prep_time_minutes, dish_kind,
+            dish_nutrition(
+              fiber_g, sodium_mg, cholesterol_mg, potassium_mg, calcium_mg,
+              iron_mg, magnesium_mg, vitamin_a_mcg, vitamin_c_mg,
+              vitamin_d_mcg, vitamin_b12_mcg
+            )
+          )
         )`,
       )
       .eq('status', 'active')
@@ -313,6 +412,13 @@ export class MealPlansService {
       throw new BadRequestException('Ngày kết thúc phải sau ngày bắt đầu');
     }
     return { from, to };
+  }
+
+  private toStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter(
+      (item): item is string => typeof item === 'string' && item.trim().length > 0,
+    );
   }
 
   private throwRpcError(message: string): never {

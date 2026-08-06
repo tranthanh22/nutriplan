@@ -72,17 +72,20 @@ function attachStripe(
   service: SubscriptionsService,
   session: Stripe.Checkout.Session,
   event?: Stripe.Event,
+  subscription?: Stripe.Subscription,
 ) {
   const retrieve = jest.fn().mockResolvedValue(session);
+  const retrieveSubscription = jest.fn().mockResolvedValue(subscription);
   const constructEvent = jest.fn().mockReturnValue(event);
   Object.defineProperty(service, 'stripeClient', {
     configurable: true,
     value: {
       checkout: { sessions: { retrieve } },
+      subscriptions: { retrieve: retrieveSubscription },
       webhooks: { constructEvent },
     },
   });
-  return { retrieve, constructEvent };
+  return { retrieve, retrieveSubscription, constructEvent };
 }
 
 describe('SubscriptionsService Stripe checkout', () => {
@@ -98,6 +101,83 @@ describe('SubscriptionsService Stripe checkout', () => {
     await expect(
       service.checkoutStatus(user, 'cs_test_missing'),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('creates a recurring Stripe Checkout session using the plan interval', async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: {
+        subscription_id: '33333333-3333-4333-8333-333333333333',
+        payment_id: '22222222-2222-4222-8222-222222222222',
+        plan_code: 'monthly',
+        plan_name: 'NutriPlan 1 tháng',
+        price_amount: 49000,
+        currency: 'VND',
+        access_days: 30,
+        payment_status: 'pending',
+        payment_metadata: {},
+      },
+      error: null,
+    });
+    const savePayment = jest.fn().mockResolvedValue({ error: null });
+    const eqId = jest.fn().mockReturnValue({ eq: savePayment });
+    const update = jest.fn().mockReturnValue({ eq: eqId });
+    const from = jest.fn().mockReturnValue({ update });
+    const service = new SubscriptionsService(
+      {
+        getAdminClient: jest.fn().mockReturnValue({ rpc, from }),
+      } as never,
+      createConfig(),
+    );
+    const createCheckoutSession = jest.fn().mockResolvedValue({
+      id: 'cs_test_recurring',
+      url: 'https://checkout.stripe.test/recurring',
+      expires_at: 1_785_169_800,
+    });
+    Object.defineProperty(service, 'stripeClient', {
+      configurable: true,
+      value: { checkout: { sessions: { create: createCheckoutSession } } },
+    });
+    const internal = service as unknown as {
+      getPlanBilling: () => Promise<{
+        billing_interval: 'month';
+        interval_count: number;
+      }>;
+      getOrCreateStripeCustomer: () => Promise<string>;
+    };
+    jest.spyOn(internal, 'getPlanBilling').mockResolvedValue({
+      billing_interval: 'month',
+      interval_count: 1,
+    });
+    jest
+      .spyOn(internal, 'getOrCreateStripeCustomer')
+      .mockResolvedValue('cus_test_owned');
+    jest.spyOn(service, 'current').mockResolvedValue(null);
+
+    await service.createCheckout(user, {
+      planId: '66666666-6666-4666-8666-666666666666',
+      idempotencyKey: 'checkout-recurring-test',
+    });
+
+    expect(createCheckoutSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'subscription',
+        customer: 'cus_test_owned',
+        subscription_data: {
+          metadata: expect.objectContaining({
+            userId: user.id,
+            planCode: 'monthly',
+          }),
+        },
+        line_items: [
+          expect.objectContaining({
+            price_data: expect.objectContaining({
+              recurring: { interval: 'month', interval_count: 1 },
+            }),
+          }),
+        ],
+      }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
   });
 
   it('does not expose a Checkout Session owned by another user', async () => {
@@ -142,6 +222,49 @@ describe('SubscriptionsService Stripe checkout', () => {
     });
   });
 
+  it('stores the Stripe subscription id for recurring checkout', async () => {
+    const { service, rpc } = createService();
+    const stripeSubscription = {
+      id: 'sub_test_recurring',
+      object: 'subscription',
+      status: 'active',
+      cancel_at_period_end: false,
+      canceled_at: null,
+      items: {
+        data: [
+          {
+            current_period_start: 1_785_168_000,
+            current_period_end: 1_787_846_400,
+          },
+        ],
+      },
+    } as Stripe.Subscription;
+    const session = checkoutSession({ subscription: stripeSubscription.id });
+    attachStripe(service, session, undefined, stripeSubscription);
+    const internal = service as unknown as {
+      syncStripeSubscription: (
+        subscription: Stripe.Subscription,
+      ) => Promise<void>;
+    };
+    jest.spyOn(internal, 'syncStripeSubscription').mockResolvedValue();
+    jest.spyOn(service, 'current').mockResolvedValue({
+      id: session.metadata?.subscriptionId,
+      status: 'active',
+    });
+
+    await service.checkoutStatus(user, session.id);
+
+    expect(rpc).toHaveBeenCalledWith(
+      'complete_subscription_payment',
+      expect.objectContaining({
+        p_provider_payment_id: stripeSubscription.id,
+      }),
+    );
+    expect(internal.syncStripeSubscription).toHaveBeenCalledWith(
+      stripeSubscription,
+    );
+  });
+
   it('rejects an unsigned webhook before processing it', async () => {
     const { service, rpc } = createService();
 
@@ -164,7 +287,10 @@ describe('SubscriptionsService Stripe checkout', () => {
 
     await expect(
       service.handleStripeWebhook(Buffer.from('{}'), 'signature'),
-    ).resolves.toEqual({ received: true, pending: true });
+    ).resolves.toEqual({
+      received: true,
+      pending: true,
+    });
     expect(constructEvent).toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
@@ -280,5 +406,145 @@ describe('SubscriptionsService free trial', () => {
     await expect(service.startTrial(user)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+});
+
+describe('SubscriptionsService cancellation', () => {
+  it('schedules cancellation for the authenticated user and keeps the paid period', async () => {
+    const current = {
+      id: '77777777-7777-4777-8777-777777777777',
+      user_id: user.id,
+      status: 'active',
+      current_period_end: '2099-08-28T00:00:00.000Z',
+    };
+    const cancelled = {
+      ...current,
+      status: 'cancel_at_period_end',
+      cancel_at_period_end: true,
+    };
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: cancelled,
+      error: null,
+    });
+    const select = jest.fn().mockReturnValue({ maybeSingle });
+    const eqStatus = jest.fn().mockReturnValue({ select });
+    const eqUser = jest.fn().mockReturnValue({ eq: eqStatus });
+    const eqId = jest.fn().mockReturnValue({ eq: eqUser });
+    const update = jest.fn().mockReturnValue({ eq: eqId });
+    const from = jest.fn().mockReturnValue({ update });
+    const service = new SubscriptionsService(
+      { getAdminClient: jest.fn().mockReturnValue({ from }) } as never,
+      createConfig(),
+    );
+    jest.spyOn(service, 'current').mockResolvedValue(current);
+
+    await expect(service.cancelAtPeriodEnd(user)).resolves.toEqual(cancelled);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'cancel_at_period_end',
+        cancel_at_period_end: true,
+        cancelled_at: expect.any(String),
+      }),
+    );
+    expect(eqId).toHaveBeenCalledWith('id', current.id);
+    expect(eqUser).toHaveBeenCalledWith('user_id', user.id);
+    expect(eqStatus).toHaveBeenCalledWith('status', 'active');
+  });
+
+  it('is idempotent when cancellation was already scheduled', async () => {
+    const current = {
+      id: '77777777-7777-4777-8777-777777777777',
+      status: 'cancel_at_period_end',
+      current_period_end: '2099-08-28T00:00:00.000Z',
+    };
+    const { service } = createService();
+    jest.spyOn(service, 'current').mockResolvedValue(current);
+
+    await expect(service.cancelAtPeriodEnd(user)).resolves.toEqual(current);
+  });
+
+  it('turns off Stripe auto-renewal for a recurring subscription', async () => {
+    const current = {
+      id: '77777777-7777-4777-8777-777777777777',
+      status: 'active',
+      provider: 'stripe',
+      provider_subscription_id: 'sub_test_recurring',
+      current_period_end: '2099-08-28T00:00:00.000Z',
+    };
+    const scheduled = {
+      ...current,
+      status: 'cancel_at_period_end',
+      cancel_at_period_end: true,
+    };
+    const stripeSubscription = {
+      id: current.provider_subscription_id,
+      object: 'subscription',
+      cancel_at_period_end: true,
+    } as Stripe.Subscription;
+    const { service } = createService();
+    const update = jest.fn().mockResolvedValue(stripeSubscription);
+    Object.defineProperty(service, 'stripeClient', {
+      configurable: true,
+      value: { subscriptions: { update } },
+    });
+    const internal = service as unknown as {
+      syncStripeSubscription: (
+        subscription: Stripe.Subscription,
+      ) => Promise<void>;
+    };
+    jest.spyOn(internal, 'syncStripeSubscription').mockResolvedValue();
+    jest
+      .spyOn(service, 'current')
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(scheduled);
+
+    await expect(service.cancelAtPeriodEnd(user)).resolves.toEqual(scheduled);
+    expect(update).toHaveBeenCalledWith(current.provider_subscription_id, {
+      cancel_at_period_end: true,
+    });
+    expect(internal.syncStripeSubscription).toHaveBeenCalledWith(
+      stripeSubscription,
+    );
+  });
+
+  it('can turn Stripe auto-renewal back on before period end', async () => {
+    const current = {
+      id: '77777777-7777-4777-8777-777777777777',
+      status: 'cancel_at_period_end',
+      provider: 'stripe',
+      provider_subscription_id: 'sub_test_recurring',
+      current_period_end: '2099-08-28T00:00:00.000Z',
+    };
+    const resumed = {
+      ...current,
+      status: 'active',
+      cancel_at_period_end: false,
+    };
+    const stripeSubscription = {
+      id: current.provider_subscription_id,
+      object: 'subscription',
+      cancel_at_period_end: false,
+    } as Stripe.Subscription;
+    const { service } = createService();
+    const update = jest.fn().mockResolvedValue(stripeSubscription);
+    Object.defineProperty(service, 'stripeClient', {
+      configurable: true,
+      value: { subscriptions: { update } },
+    });
+    const internal = service as unknown as {
+      syncStripeSubscription: (
+        subscription: Stripe.Subscription,
+      ) => Promise<void>;
+    };
+    jest.spyOn(internal, 'syncStripeSubscription').mockResolvedValue();
+    jest
+      .spyOn(service, 'current')
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(resumed);
+
+    await expect(service.resumeAutoRenewal(user)).resolves.toEqual(resumed);
+    expect(update).toHaveBeenCalledWith(current.provider_subscription_id, {
+      cancel_at_period_end: false,
+    });
   });
 });

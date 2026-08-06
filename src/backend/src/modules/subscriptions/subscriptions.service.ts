@@ -31,6 +31,11 @@ interface CheckoutRecord {
   payment_metadata: CheckoutMetadata | null;
 }
 
+interface PlanBilling {
+  billing_interval: 'day' | 'month' | 'year';
+  interval_count: number;
+}
+
 @Injectable()
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
@@ -64,7 +69,8 @@ export class SubscriptionsService {
       .order('current_period_end', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (activeError) throw new InternalServerErrorException(activeError.message);
+    if (activeError)
+      throw new InternalServerErrorException(activeError.message);
     if (active) return active;
 
     const { data: pending, error: pendingError } = await client
@@ -74,19 +80,22 @@ export class SubscriptionsService {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (pendingError) throw new InternalServerErrorException(pendingError.message);
+    if (pendingError)
+      throw new InternalServerErrorException(pendingError.message);
     return pending;
   }
 
   async hasActive(user: AuthUser) {
     const current = await this.current(user);
     if (!current) return false;
-    if (!['active', 'cancel_at_period_end'].includes(current.status as string)) {
+    if (
+      !['active', 'cancel_at_period_end'].includes(current.status as string)
+    ) {
       return false;
     }
     return Boolean(
       current.current_period_end &&
-        new Date(current.current_period_end as string) > new Date(),
+      new Date(current.current_period_end as string) > new Date(),
     );
   }
 
@@ -113,7 +122,9 @@ export class SubscriptionsService {
       throw new InternalServerErrorException(previousTrialError.message);
     }
     if (previousTrial) {
-      throw new ForbiddenException('Tài khoản này đã sử dụng gói dùng thử 7 ngày');
+      throw new ForbiddenException(
+        'Tài khoản này đã sử dụng gói dùng thử 7 ngày',
+      );
     }
 
     const { data: plan, error: planError } = await admin
@@ -124,7 +135,9 @@ export class SubscriptionsService {
       .maybeSingle();
     if (planError) throw new InternalServerErrorException(planError.message);
     if (!plan) {
-      throw new ServiceUnavailableException('Chưa cấu hình gói dùng thử 7 ngày');
+      throw new ServiceUnavailableException(
+        'Chưa cấu hình gói dùng thử 7 ngày',
+      );
     }
 
     const periodStart = new Date();
@@ -155,6 +168,17 @@ export class SubscriptionsService {
   }
 
   async createCheckout(user: AuthUser, dto: CreateSubscriptionCheckoutDto) {
+    const current = await this.current(user);
+    if (
+      current &&
+      ['active', 'cancel_at_period_end'].includes(String(current.status)) &&
+      current.current_period_end &&
+      new Date(String(current.current_period_end)) > new Date()
+    ) {
+      throw new BadRequestException(
+        'Bạn đang có gói Plus còn hiệu lực. Hãy quản lý tự động gia hạn trong Cài đặt.',
+      );
+    }
     const admin = this.supabase.getAdminClient();
     const { data, error } = await admin.rpc('create_subscription_checkout', {
       p_user_id: user.id,
@@ -176,7 +200,9 @@ export class SubscriptionsService {
       throw new InternalServerErrorException(error.message);
     }
 
-    const checkout = (Array.isArray(data) ? data[0] : data) as CheckoutRecord | null;
+    const checkout = (
+      Array.isArray(data) ? data[0] : data
+    ) as CheckoutRecord | null;
     if (!checkout) {
       throw new InternalServerErrorException('Không thể khởi tạo giao dịch');
     }
@@ -190,6 +216,7 @@ export class SubscriptionsService {
     }
 
     const stripe = this.getStripe();
+    const billing = await this.getPlanBilling(checkout.plan_code);
     const frontendUrl = this.config
       .getOrThrow<string>('FRONTEND_URL')
       .replace(/\/$/, '');
@@ -262,12 +289,17 @@ export class SubscriptionsService {
     try {
       session = await stripe.checkout.sessions.create(
         {
-          mode: 'payment',
+          mode: 'subscription',
           payment_method_types: ['card'],
           client_reference_id: user.id,
           customer: customerId,
-          payment_intent_data: {
-            setup_future_usage: 'off_session',
+          subscription_data: {
+            metadata: {
+              paymentId: String(checkout.payment_id),
+              subscriptionId: String(checkout.subscription_id),
+              userId: user.id,
+              planCode: String(checkout.plan_code),
+            },
           },
           line_items: [
             {
@@ -275,9 +307,13 @@ export class SubscriptionsService {
               price_data: {
                 currency: String(checkout.currency).toLowerCase(),
                 unit_amount: Math.round(Number(checkout.price_amount)),
+                recurring: {
+                  interval: billing.billing_interval,
+                  interval_count: billing.interval_count,
+                },
                 product_data: {
                   name: String(checkout.plan_name),
-                  description: `Quyền truy cập NutriPlan Plus trong ${checkout.access_days} ngày`,
+                  description: `NutriPlan Plus tự động gia hạn mỗi ${this.describeBillingCycle(billing)}`,
                 },
               },
             },
@@ -371,6 +407,116 @@ export class SubscriptionsService {
     }
   }
 
+  async cancelAtPeriodEnd(user: AuthUser) {
+    const current = await this.current(user);
+    if (!current) {
+      throw new BadRequestException(
+        'Bạn chưa có gói subscription đang hoạt động',
+      );
+    }
+
+    if (String(current.status) === 'cancel_at_period_end') {
+      return current;
+    }
+    if (
+      String(current.status) !== 'active' ||
+      !current.current_period_end ||
+      new Date(String(current.current_period_end)) <= new Date()
+    ) {
+      throw new BadRequestException('Gói hiện tại không còn hiệu lực để hủy');
+    }
+
+    const providerSubscriptionId = String(
+      current.provider_subscription_id ?? '',
+    );
+    if (
+      String(current.provider) === 'stripe' &&
+      providerSubscriptionId.startsWith('sub_')
+    ) {
+      try {
+        const stripeSubscription = await this.getStripe().subscriptions.update(
+          providerSubscriptionId,
+          { cancel_at_period_end: true },
+        );
+        await this.syncStripeSubscription(stripeSubscription);
+        return await this.current(user);
+      } catch (error) {
+        if (
+          error instanceof ServiceUnavailableException ||
+          error instanceof InternalServerErrorException
+        ) {
+          throw error;
+        }
+        throw new BadGatewayException(
+          error instanceof Error
+            ? error.message
+            : 'Không thể tắt tự động gia hạn trên Stripe',
+        );
+      }
+    }
+
+    const cancelledAt = new Date().toISOString();
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('subscriptions')
+      .update({
+        status: 'cancel_at_period_end',
+        cancel_at_period_end: true,
+        cancelled_at: cancelledAt,
+        updated_at: cancelledAt,
+      })
+      .eq('id', String(current.id))
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .select('*, subscription_plans(*)')
+      .maybeSingle();
+
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!data) {
+      throw new BadRequestException(
+        'Trạng thái gói vừa thay đổi. Vui lòng tải lại và thử lại.',
+      );
+    }
+    return data;
+  }
+
+  async resumeAutoRenewal(user: AuthUser) {
+    const current = await this.current(user);
+    const providerSubscriptionId = String(
+      current?.provider_subscription_id ?? '',
+    );
+    if (
+      !current ||
+      String(current.status) !== 'cancel_at_period_end' ||
+      String(current.provider) !== 'stripe' ||
+      !providerSubscriptionId.startsWith('sub_')
+    ) {
+      throw new BadRequestException(
+        'Gói hiện tại không hỗ trợ bật lại tự động gia hạn',
+      );
+    }
+    try {
+      const stripeSubscription = await this.getStripe().subscriptions.update(
+        providerSubscriptionId,
+        { cancel_at_period_end: false },
+      );
+      await this.syncStripeSubscription(stripeSubscription);
+      return await this.current(user);
+    } catch (error) {
+      if (
+        error instanceof ServiceUnavailableException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw new BadGatewayException(
+        error instanceof Error
+          ? error.message
+          : 'Không thể bật lại tự động gia hạn trên Stripe',
+      );
+    }
+  }
+
   async checkoutStatus(user: AuthUser, sessionId: string) {
     const stripe = this.getStripe();
     let session: Stripe.Checkout.Session;
@@ -404,8 +550,7 @@ export class SubscriptionsService {
       sessionId: session.id,
       checkoutStatus: session.status,
       paymentStatus: session.payment_status,
-      paid:
-        session.status === 'complete' && session.payment_status === 'paid',
+      paid: session.status === 'complete' && session.payment_status === 'paid',
       testMode: !session.livemode,
       subscription: await this.current(user),
     };
@@ -460,6 +605,41 @@ export class SubscriptionsService {
           new Date(event.created * 1000).toISOString(),
         ),
       };
+    }
+
+    if (event.type === 'invoice.paid') {
+      const invoice = event.data.object;
+      if (invoice.billing_reason === 'subscription_cycle') {
+        const subscriptionId = this.invoiceSubscriptionId(invoice);
+        if (subscriptionId) {
+          const subscription = await this.getStripe().subscriptions.retrieve(
+            subscriptionId,
+          );
+          await this.syncStripeSubscription(subscription);
+        }
+      }
+      return { received: true };
+    }
+
+    if (event.type === 'invoice.payment_failed') {
+      const subscriptionId = this.invoiceSubscriptionId(event.data.object);
+      if (subscriptionId) {
+        await this.updateStripeSubscriptionStatus(
+          subscriptionId,
+          'payment_failed',
+        );
+      }
+      return { received: true };
+    }
+
+    if (event.type === 'customer.subscription.updated') {
+      await this.syncStripeSubscription(event.data.object);
+      return { received: true };
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+      await this.syncStripeSubscription(event.data.object);
+      return { received: true };
     }
 
     if (event.type === 'checkout.session.expired') {
@@ -601,16 +781,130 @@ export class SubscriptionsService {
       throw new BadRequestException('Stripe Session thiếu paymentId');
     }
 
+    const providerSubscriptionId = this.checkoutSubscriptionId(session);
     const { data, error } = await this.supabase
       .getAdminClient()
       .rpc('complete_subscription_payment', {
         p_payment_id: paymentId,
         p_provider_event_id: providerEventId,
-        p_provider_payment_id: session.id,
+        p_provider_payment_id: providerSubscriptionId ?? session.id,
         p_paid_at: paidAt,
       });
     if (error) throw new InternalServerErrorException(error.message);
+    if (providerSubscriptionId) {
+      const subscription = await this.getStripe().subscriptions.retrieve(
+        providerSubscriptionId,
+      );
+      await this.syncStripeSubscription(subscription);
+    }
     return data;
+  }
+
+  private async getPlanBilling(planCode: string): Promise<PlanBilling> {
+    const { data, error } = await this.supabase
+      .getAdminClient()
+      .from('subscription_plans')
+      .select('billing_interval, interval_count')
+      .eq('code', planCode)
+      .eq('is_active', true)
+      .single();
+    if (error || !data) {
+      throw new InternalServerErrorException(
+        error?.message ?? 'Không tìm thấy chu kỳ gia hạn của gói',
+      );
+    }
+    if (!['day', 'month', 'year'].includes(String(data.billing_interval))) {
+      throw new InternalServerErrorException(
+        'Chu kỳ gói chưa được Stripe hỗ trợ',
+      );
+    }
+    const intervalCount = Number(data.interval_count);
+    if (!Number.isInteger(intervalCount) || intervalCount < 1) {
+      throw new InternalServerErrorException('Chu kỳ gia hạn của gói không hợp lệ');
+    }
+    return {
+      billing_interval: data.billing_interval as PlanBilling['billing_interval'],
+      interval_count: intervalCount,
+    };
+  }
+
+  private describeBillingCycle(billing: PlanBilling) {
+    const unit =
+      billing.billing_interval === 'day'
+        ? 'ngày'
+        : billing.billing_interval === 'month'
+          ? 'tháng'
+          : 'năm';
+    return `${billing.interval_count} ${unit}`;
+  }
+
+  private checkoutSubscriptionId(session: Stripe.Checkout.Session) {
+    if (typeof session.subscription === 'string') return session.subscription;
+    return session.subscription?.id ?? null;
+  }
+
+  private invoiceSubscriptionId(invoice: Stripe.Invoice) {
+    const subscription = invoice.parent?.subscription_details?.subscription;
+    if (typeof subscription === 'string') return subscription;
+    return subscription?.id ?? null;
+  }
+
+  private stripeSubscriptionPeriod(subscription: Stripe.Subscription) {
+    const items = subscription.items.data;
+    if (items.length === 0) return null;
+    const start = Math.min(...items.map((item) => item.current_period_start));
+    const end = Math.max(...items.map((item) => item.current_period_end));
+    return {
+      start: new Date(start * 1000).toISOString(),
+      end: new Date(end * 1000).toISOString(),
+    };
+  }
+
+  private async syncStripeSubscription(subscription: Stripe.Subscription) {
+    const period = this.stripeSubscriptionPeriod(subscription);
+    const ended = subscription.status === 'canceled';
+    const entitled = ['active', 'trialing'].includes(subscription.status);
+    const status = ended
+      ? 'cancelled'
+      : entitled
+        ? subscription.cancel_at_period_end
+          ? 'cancel_at_period_end'
+          : 'active'
+        : 'payment_failed';
+    const timestamp = new Date().toISOString();
+    const { error } = await this.supabase
+      .getAdminClient()
+      .from('subscriptions')
+      .update({
+        provider: 'stripe',
+        status,
+        cancel_at_period_end: subscription.cancel_at_period_end,
+        cancelled_at: subscription.canceled_at
+          ? new Date(subscription.canceled_at * 1000).toISOString()
+          : null,
+        ...(period
+          ? {
+              current_period_start: period.start,
+              current_period_end: period.end,
+            }
+          : {}),
+        updated_at: timestamp,
+      })
+      .eq('provider_subscription_id', subscription.id);
+    if (error) throw new InternalServerErrorException(error.message);
+  }
+
+  private async updateStripeSubscriptionStatus(
+    providerSubscriptionId: string,
+    status: 'payment_failed',
+  ) {
+    const { error } = await this.supabase
+      .getAdminClient()
+      .from('subscriptions')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('provider', 'stripe')
+      .eq('provider_subscription_id', providerSubscriptionId);
+    if (error) throw new InternalServerErrorException(error.message);
   }
 
   private isTestMode() {

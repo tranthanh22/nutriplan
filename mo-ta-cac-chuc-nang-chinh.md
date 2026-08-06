@@ -254,7 +254,7 @@ Backend từ chối lưu món nếu dị nguyên trùng với dị ứng khách 
 - Cập nhật hồ sơ cá nhân và hồ sơ dinh dưỡng.
 - Đăng xuất khỏi tài khoản.
 
-## 8. Phân quyền và bảo mật 
+## 8. Phân quyền và bảo mật
 
 - Supabase Auth quản lý tài khoản và phiên đăng nhập.
 - NestJS JWT Guard xác minh access token trước khi xử lý API bảo vệ.

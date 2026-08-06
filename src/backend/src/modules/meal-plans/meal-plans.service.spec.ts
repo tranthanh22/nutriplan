@@ -27,6 +27,89 @@ function createService(active = true) {
 }
 
 describe('MealPlansService ownership and subscription checks', () => {
+  it('returns the kitchen ingredient snapshot for the journal owner', async () => {
+    const journalQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          id: '99999999-9999-4999-8999-999999999999',
+          user_id: user.id,
+          source: 'kitchen',
+          consumed_at: '2026-08-05T05:00:00.000Z',
+          meal_type: 'lunch',
+          name: 'Cá hồi cơm Nhật',
+          servings: 1,
+          calories_kcal: 560,
+          protein_g: 36,
+          carbs_g: 58,
+          fat_g: 19,
+          notes: null,
+          dish_id: null,
+          daily_order_item_id: '88888888-8888-4888-8888-888888888888',
+        },
+        error: null,
+      }),
+    };
+    const kitchenItemQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          dish_name: 'Cá hồi cơm Nhật',
+          image_path: '/images/salmon.jpg',
+          ingredient_snapshot: ['Cá hồi', 'Cơm Nhật', 'Rong biển'],
+        },
+        error: null,
+      }),
+    };
+    const client = {
+      from: jest.fn((table: string) =>
+        table === 'meal_log_entries' ? journalQuery : kitchenItemQuery,
+      ),
+    };
+    const service = new MealPlansService(
+      { createUserClient: jest.fn().mockReturnValue(client) } as never,
+      { hasActive: jest.fn() } as never,
+    );
+
+    await expect(
+      service.journalEntryDetail(
+        user,
+        '99999999-9999-4999-8999-999999999999',
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        name: 'Cá hồi cơm Nhật',
+        image_path: '/images/salmon.jpg',
+        ingredients: ['Cá hồi', 'Cơm Nhật', 'Rong biển'],
+      }),
+    );
+    expect(journalQuery.eq).toHaveBeenNthCalledWith(2, 'user_id', user.id);
+  });
+
+  it('does not expose a journal entry outside the authenticated user scope', async () => {
+    const journalQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    const client = { from: jest.fn().mockReturnValue(journalQuery) };
+    const service = new MealPlansService(
+      { createUserClient: jest.fn().mockReturnValue(client) } as never,
+      { hasActive: jest.fn() } as never,
+    );
+
+    await expect(
+      service.journalEntryDetail(
+        user,
+        '99999999-9999-4999-8999-999999999999',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(journalQuery.eq).toHaveBeenNthCalledWith(2, 'user_id', user.id);
+    expect(client.from).toHaveBeenCalledTimes(1);
+  });
+
   it('requests replacement candidates for the authenticated owner only', async () => {
     const { service, rpc } = createService();
     const itemId = '22222222-2222-4222-8222-222222222222';
@@ -72,10 +155,23 @@ describe('MealPlansService ownership and subscription checks', () => {
   it('confirms one kitchen item and records only that item', async () => {
     const { service, rpc } = createService();
     const itemId = '88888888-8888-4888-8888-888888888888';
+    const journalEntry = {
+      id: '99999999-9999-4999-8999-999999999999',
+      source: 'kitchen',
+      daily_order_item_id: itemId,
+      name: 'Cá hồi cơm Nhật',
+      calories_kcal: 560,
+      protein_g: 36,
+      carbs_g: 58,
+      fat_g: 19,
+    };
+    rpc.mockResolvedValueOnce({ data: journalEntry, error: null });
 
-    await service.confirmKitchenMealItem(user, itemId, {
-      consumedAt: '2026-08-05T05:00:00.000Z',
-    });
+    await expect(
+      service.confirmKitchenMealItem(user, itemId, {
+        consumedAt: '2026-08-05T05:00:00.000Z',
+      }),
+    ).resolves.toEqual(journalEntry);
 
     expect(rpc).toHaveBeenCalledWith('confirm_kitchen_meal_item_eaten', {
       p_user_id: user.id,

@@ -29,6 +29,8 @@ stripe listen --forward-to localhost:4000/api/v1/subscriptions/webhooks/stripe
 
 Sao chép `whsec_...` Stripe CLI trả về vào `STRIPE_WEBHOOK_SECRET`, dùng `sk_test_...` cho `STRIPE_SECRET_KEY`, rồi thanh toán bằng thẻ test `4242 4242 4242 4242`.
 
+Checkout subscription dùng chế độ tự động gia hạn. Trên Stripe Dashboard, webhook production cần đăng ký các event: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated` và `customer.subscription.deleted`.
+
 Hướng dẫn đầy đủ: [`docs/stripe-test-mode.md`](../../docs/stripe-test-mode.md).
 
 ## Chạy và kiểm tra
@@ -57,7 +59,7 @@ API JWT Guard xác thực token với Supabase và mọi truy vấn dữ liệu 
 | Hồ sơ dinh dưỡng | `POST /nutrition-profiles/calculate`, `POST /nutrition-profiles`, `GET /nutrition-profiles/current`, `GET /nutrition-profiles/versions` | Sẵn sàng, có phiên bản |
 | AI sức khỏe | `POST /ai-health-insights`, `GET /ai-health-insights/latest` | Sẵn sàng với `mock` hoặc Gemini; có structured output, timeout và chặn request trùng |
 | Trợ lý ảo | `POST /assistant/messages`, `GET /assistant/conversations` | Sẵn sàng với Gemini và lưu lịch sử hội thoại |
-| Gói thuê bao | `GET /subscriptions/plans`, `GET /subscriptions/current`, `POST /subscriptions/checkout`, `POST /subscriptions/webhooks/stripe` | Sẵn sàng với Stripe Checkout, webhook idempotent |
+| Gói thuê bao | `GET /subscriptions/plans`, `GET /subscriptions/current`, `POST /subscriptions/checkout`, `POST /subscriptions/cancel`, `POST /subscriptions/resume`, `POST /subscriptions/webhooks/stripe` | Stripe recurring Checkout, tự động gia hạn, tắt/bật lại gia hạn và đồng bộ webhook |
 | Món ăn | `GET /dishes/preview`, `GET /dishes/:id`, `GET /dishes/allergens`, `GET /dishes/:id/recipe` | Preview/chi tiết trả dinh dưỡng và dị ứng; công thức cần subscription |
 | Thực đơn | `GET /meal-plans/current` | Sẵn sàng; cần subscription |
 | Nhà bếp | `GET /kitchens`, `GET /kitchens/:id/offers` | Sẵn sàng, không cần subscription |

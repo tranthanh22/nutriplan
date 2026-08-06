@@ -59,6 +59,17 @@ export class MealPlansController {
     return this.mealPlans.journal(user, query);
   }
 
+  @Get('journal/:entryId')
+  @ApiOperation({
+    summary: 'Thông tin, dinh dưỡng và thành phần của một món trong nhật ký',
+  })
+  journalEntryDetail(
+    @CurrentUser() user: AuthUser,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+  ) {
+    return this.mealPlans.journalEntryDetail(user, entryId);
+  }
+
   @Get('items/:itemId/replacements')
   @ApiOperation({ summary: 'Các món thay thế vẫn giữ cân bằng dinh dưỡng ngày' })
   replacements(

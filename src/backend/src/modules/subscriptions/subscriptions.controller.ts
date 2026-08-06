@@ -38,7 +38,9 @@ export class SubscriptionsController {
 
   @ApiBearerAuth()
   @Post('trial')
-  @ApiOperation({ summary: 'Kích hoạt một lần dùng thử NutriPlan Plus trong 7 ngày' })
+  @ApiOperation({
+    summary: 'Kích hoạt một lần dùng thử NutriPlan Plus trong 7 ngày',
+  })
   trial(@CurrentUser() user: AuthUser) {
     return this.subscriptions.startTrial(user);
   }
@@ -46,7 +48,10 @@ export class SubscriptionsController {
   @ApiBearerAuth()
   @Post('checkout')
   @ApiOperation({ summary: 'Tạo Stripe Checkout Session cho subscription' })
-  checkout(@CurrentUser() user: AuthUser, @Body() dto: CreateSubscriptionCheckoutDto) {
+  checkout(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateSubscriptionCheckoutDto,
+  ) {
     return this.subscriptions.createCheckout(user, dto);
   }
 
@@ -60,8 +65,26 @@ export class SubscriptionsController {
   }
 
   @ApiBearerAuth()
+  @Post('cancel')
+  @ApiOperation({
+    summary: 'Hủy gói vào cuối kỳ và giữ quyền truy cập đến ngày hết hạn',
+  })
+  cancel(@CurrentUser() user: AuthUser) {
+    return this.subscriptions.cancelAtPeriodEnd(user);
+  }
+
+  @ApiBearerAuth()
+  @Post('resume')
+  @ApiOperation({ summary: 'Bật lại tự động gia hạn trước khi gói kết thúc' })
+  resume(@CurrentUser() user: AuthUser) {
+    return this.subscriptions.resumeAutoRenewal(user);
+  }
+
+  @ApiBearerAuth()
   @Get('checkout/:sessionId')
-  @ApiOperation({ summary: 'Đối soát Stripe Checkout Session và trả subscription mới nhất' })
+  @ApiOperation({
+    summary: 'Đối soát Stripe Checkout Session và trả subscription mới nhất',
+  })
   checkoutStatus(
     @CurrentUser() user: AuthUser,
     @Param() params: CheckoutSessionParamDto,
