@@ -41,6 +41,16 @@ export class OrdersService {
 
   async create(user: AuthUser, dto: CreateKitchenOrderDto) {
     const admin = this.supabase.getAdminClient();
+    const { data: offer, error: offerError } = await admin
+      .from('kitchen_offers')
+      .select('id, kitchens!inner(status)')
+      .eq('code', dto.offerCode)
+      .eq('status', 'active')
+      .eq('kitchens.status', 'active')
+      .maybeSingle();
+    if (offerError) throw new InternalServerErrorException(offerError.message);
+    if (!offer) throw new BadRequestException('Gói bếp không còn khả dụng');
+
     const { data, error } = await admin.rpc('create_mock_kitchen_order_schedule', {
         p_user_id: user.id,
         p_offer_code: dto.offerCode,

@@ -137,6 +137,120 @@ export type AdminDashboardResponse = {
   }>;
 };
 
+export type AdminKitchenStatus = "pending" | "active" | "suspended" | "closed";
+
+export type AdminKitchenOffer = {
+  id: string;
+  code: string | null;
+  name: string;
+  type: "single_meal" | "package";
+  description: string | null;
+  price_amount: number | string;
+  currency: string;
+  package_days: number | null;
+  meals_per_day: number;
+  status: "draft" | "active" | "sold_out" | "inactive";
+  available_from: string | null;
+  available_until: string | null;
+  created_at: string;
+};
+
+export type AdminKitchen = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  phone: string | null;
+  email: string | null;
+  address_text: string | null;
+  status: AdminKitchenStatus;
+  rating_average: number | string;
+  rating_count: number;
+  created_at: string;
+  updated_at: string;
+  stats: {
+    memberCount: number;
+    activeMembers: number;
+    orderCount: number;
+    completedOrders: number;
+    customerCount: number;
+    revenue: number;
+    activeOffers: number;
+    lastOrderAt: string | null;
+  };
+  members: Array<{
+    user_id: string;
+    role: "owner" | "manager" | "staff";
+    is_active: boolean;
+    created_at: string;
+    profile: { id: string; full_name: string | null; phone: string | null } | null;
+  }>;
+  offers: AdminKitchenOffer[];
+};
+
+export type AdminKitchensResponse = {
+  generatedAt: string;
+  summary: {
+    total: number;
+    active: number;
+    suspended: number;
+    pending: number;
+    closed: number;
+    totalRevenue: number;
+    totalOrders: number;
+    activeOffers: number;
+  };
+  kitchens: AdminKitchen[];
+};
+
+export type AdminSubscriptionAnalyticsResponse = {
+  generatedAt: string;
+  summary: {
+    customers: number;
+    revenue: number;
+    payingCustomers: number;
+    payingCustomerRatePercent: number;
+    activePaidSubscribers: number;
+    activePaidRatePercent: number;
+    trialUsers: number;
+    activeTrials: number;
+    convertedTrials: number;
+    trialConversionRatePercent: number;
+    cancelledCustomers: number;
+    cancellationRatePercent: number;
+    successfulPayments: number;
+  };
+  plans: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string | null;
+    price_amount: number | string;
+    currency: string;
+    billing_interval: "day" | "month" | "year";
+    interval_count: number;
+    is_active: boolean;
+    created_at: string;
+    metrics: {
+      revenue: number;
+      revenueSharePercent: number;
+      buyers: number;
+      activeSubscribers: number;
+      paymentCount: number;
+      trialConversions: number;
+      cancellations: number;
+      cancellationRatePercent: number;
+    };
+  }>;
+  definitions: {
+    revenue: string;
+    payingCustomerRate: string;
+    activePaidRate: string;
+    trialConversion: string;
+    cancellationRate: string;
+  };
+};
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -216,5 +330,30 @@ export async function updateManagedDailyOrderItem(
 export async function getAdminDashboard() {
   return parseResponse<AdminDashboardResponse>(
     await fetch("/api/admin/dashboard", { cache: "no-store" })
+  );
+}
+
+export async function getAdminKitchens() {
+  return parseResponse<AdminKitchensResponse>(
+    await fetch("/api/admin/kitchens", { cache: "no-store" })
+  );
+}
+
+export async function getAdminSubscriptionAnalytics() {
+  return parseResponse<AdminSubscriptionAnalyticsResponse>(
+    await fetch("/api/admin/subscriptions", { cache: "no-store" })
+  );
+}
+
+export async function updateAdminKitchenStatus(
+  kitchenId: string,
+  status: "active" | "suspended"
+) {
+  return parseResponse<Pick<AdminKitchen, "id" | "name" | "slug" | "status" | "updated_at">>(
+    await fetch(`/api/admin/kitchens/${encodeURIComponent(kitchenId)}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    })
   );
 }

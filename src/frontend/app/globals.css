@@ -2544,6 +2544,7 @@ h1, h2, h3, .brand { font-family: "Be Vietnam Pro", sans-serif; }
 .management-heading h1 { margin: 0 0 7px; font-size: clamp(29px, 3vw, 42px); letter-spacing: -1.2px; }
 .management-heading p { margin: 0; color: var(--ink-soft); font-size: 14px; }
 .management-alert { display: flex; align-items: center; gap: 9px; padding: 13px 15px; border: 1px solid #efc4bc; border-radius: 12px; color: #9f443b; background: #fff5f3; font-size: 13px; font-weight: 700; }
+.management-notice { display: flex; align-items: center; gap: 9px; padding: 13px 15px; border: 1px solid #a9d7c1; border-radius: 12px; color: #176649; background: #effaf4; font-size: 13px; font-weight: 750; }
 .management-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .management-metric,
 .admin-metric { display: flex; min-width: 0; align-items: center; gap: 14px; padding: 20px; border: 1px solid #d6e5dd; border-radius: 16px; background: white; box-shadow: 0 7px 22px rgba(23, 52, 45, .045); }
@@ -2664,12 +2665,96 @@ h1, h2, h3, .brand { font-family: "Be Vietnam Pro", sans-serif; }
 .admin-order-table th { padding: 12px 15px; color: #64748b; background: #f8fbf9; font-size: 10px; text-align: left; text-transform: uppercase; white-space: nowrap; }
 .admin-order-table td { padding: 14px 15px; border-top: 1px solid #e8efeb; white-space: nowrap; }
 .admin-order-table tbody tr:hover { background: #fbfdfc; }
+.subscription-kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; padding: 16px; background: #f8fbf9; }
+.subscription-kpi { display: flex; min-width: 0; align-items: flex-start; gap: 11px; padding: 15px; border: 1px solid #dce8e2; border-radius: 13px; background: white; }
+.subscription-kpi > span { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 10px; color: #047857; background: #e4f7ed; }
+.subscription-kpi > div { min-width: 0; }
+.subscription-kpi small,
+.subscription-kpi strong { display: block; }
+.subscription-kpi small { margin-bottom: 5px; color: #64748b; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.subscription-kpi strong { overflow: hidden; color: #183f32; font-size: clamp(19px, 1.6vw, 26px); letter-spacing: -.5px; text-overflow: ellipsis; white-space: nowrap; }
+.subscription-kpi p { display: flex; align-items: center; gap: 4px; margin: 6px 0 0; color: #71847d; font-size: 9px; line-height: 1.35; }
+.subscription-kpi--blue > span { color: #0369a1; background: #e0f2fe; }
+.subscription-kpi--purple > span { color: #6d28d9; background: #ede9fe; }
+.subscription-kpi--amber > span { color: #a16207; background: #fef3c7; }
+.subscription-kpi--red > span { color: #b23b32; background: #fee9e6; }
+.subscription-plan-table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
+.subscription-plan-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.subscription-plan-table th { padding: 11px 14px; color: #64748b; background: #f8fbf9; font-size: 9px; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.subscription-plan-table td { padding: 14px; border-top: 1px solid #e8efeb; color: #425d53; white-space: nowrap; }
+.subscription-plan-table tbody tr:hover { background: #fbfdfc; }
+.subscription-plan-name { display: flex; min-width: 190px; align-items: center; gap: 9px; }
+.subscription-plan-name > span { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: #047857; background: #e7f8ef; }
+.subscription-plan-name > div { display: grid; gap: 3px; }
+.subscription-plan-name strong { color: #183f32; font-size: 12px; }
+.subscription-plan-name small { color: #71847d; font-size: 8px; }
+.subscription-revenue-share { display: flex; min-width: 125px; align-items: center; gap: 8px; }
+.subscription-revenue-share > span { width: 75px; height: 7px; overflow: hidden; border-radius: 99px; background: #e7efeb; }
+.subscription-revenue-share i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #10b981, #34d399); }
+.subscription-revenue-share b { min-width: 35px; color: #21684f; font-size: 9px; }
+.subscription-cancel-rate { padding: 5px 7px; border-radius: 99px; color: #52636d; background: #edf1f3; font-size: 9px; font-weight: 800; }
+.subscription-cancel-rate--warning { color: #9f3f37; background: #fee9e6; }
+.subscription-definitions { border-top: 1px solid var(--line); background: #fbfdfc; }
+.subscription-definitions summary { display: flex; align-items: center; gap: 7px; padding: 12px 16px; color: #477264; cursor: pointer; font-size: 10px; font-weight: 800; list-style: none; }
+.subscription-definitions summary::-webkit-details-marker { display: none; }
+.subscription-definitions ul { display: grid; gap: 7px; margin: 0; padding: 0 18px 15px 40px; color: #60766f; font-size: 10px; line-height: 1.45; }
+.admin-kitchen-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; border-bottom: 1px solid var(--line); background: var(--line); }
+.admin-kitchen-summary > span { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 14px 18px; color: #5f746c; background: #fbfdfc; font-size: 11px; }
+.admin-kitchen-summary svg { flex: 0 0 auto; color: #059669; }
+.admin-kitchen-summary strong { overflow: hidden; color: #183f32; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-kitchen-list { display: grid; gap: 12px; padding: 16px; }
+.admin-kitchen-card { overflow: hidden; border: 1px solid #d8e5df; border-radius: 14px; background: #fff; }
+.admin-kitchen-card__main { display: grid; grid-template-columns: minmax(250px, 1.25fr) auto minmax(390px, 1.7fr) auto; align-items: center; gap: 16px; padding: 15px; }
+.admin-kitchen-card__identity { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; }
+.admin-kitchen-card__identity > span:nth-child(2) { display: grid; min-width: 0; gap: 5px; }
+.admin-kitchen-card__identity > span:nth-child(2) > strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-kitchen-card__identity small { display: flex; min-width: 0; align-items: center; gap: 4px; overflow: hidden; color: #74877f; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-kitchen-card__identity > svg { flex: 0 0 auto; margin-left: auto; color: #71847d; }
+.admin-kitchen-avatar { display: grid; width: 43px; height: 43px; flex: 0 0 auto; place-items: center; border-radius: 12px; color: #086b4c; background: #ddf7e9; font-size: 13px; font-weight: 850; }
+.kitchen-account-status { display: inline-flex; width: fit-content; padding: 6px 9px; border-radius: 99px; color: #475569; background: #eef2f4; font-size: 9px; font-weight: 850; white-space: nowrap; }
+.kitchen-account-status--active { color: #047857; background: #dff8ea; }
+.kitchen-account-status--suspended,
+.kitchen-account-status--closed { color: #9f3f37; background: #fee9e6; }
+.kitchen-account-status--pending { color: #92400e; background: #fef3c7; }
+.admin-kitchen-card__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.admin-kitchen-card__stats > span { min-width: 0; padding: 9px 10px; border-radius: 9px; background: #f5f9f7; }
+.admin-kitchen-card__stats small,
+.admin-kitchen-card__stats strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-kitchen-card__stats small { margin-bottom: 4px; color: #71847d; font-size: 8px; font-weight: 750; text-transform: uppercase; }
+.admin-kitchen-card__stats strong { color: #284c3f; font-size: 11px; }
+.button--danger-outline { border: 1px solid #e3aaa1; color: #9f443b; background: #fff7f5; }
+.button--danger-outline:hover { border-color: #d7796c; background: #ffefec; }
+.admin-kitchen-card__detail { display: grid; grid-template-columns: minmax(250px, .75fr) minmax(0, 1.5fr); gap: 14px; padding: 16px; border-top: 1px solid #e3ebe7; background: #f8fbf9; }
+.admin-kitchen-card__detail > section { min-width: 0; padding: 14px; border: 1px solid #dce7e1; border-radius: 11px; background: white; }
+.admin-kitchen-card__detail h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 12px; color: #294a3e; font-size: 13px; }
+.admin-kitchen-card__detail h3 svg { color: #059669; }
+.admin-kitchen-card__detail p { margin: 0; color: #74877f; font-size: 11px; }
+.admin-kitchen-card__detail ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.admin-kitchen-card__detail li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px; border-radius: 8px; background: #f5f9f7; }
+.admin-kitchen-card__detail li span { display: grid; min-width: 0; gap: 3px; }
+.admin-kitchen-card__detail li strong { font-size: 11px; }
+.admin-kitchen-card__detail li small { overflow: hidden; color: #71847d; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-kitchen-card__detail li em { color: #477264; font-size: 9px; font-style: normal; font-weight: 750; white-space: nowrap; }
+.admin-kitchen-offers { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.admin-kitchen-offers article { display: grid; gap: 6px; padding: 11px; border: 1px solid #e0e9e4; border-radius: 9px; background: #fcfefd; }
+.admin-kitchen-offers article > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 7px; }
+.admin-kitchen-offers strong { font-size: 11px; line-height: 1.35; }
+.admin-kitchen-offers p { font-size: 9px; }
+.admin-kitchen-offers b { color: #047857; font-size: 11px; }
+.offer-admin-status { flex: 0 0 auto; padding: 4px 6px; border-radius: 99px; color: #52636d; background: #edf1f3; font-size: 8px; font-weight: 800; }
+.offer-admin-status--active { color: #047857; background: #dff8ea; }
+.offer-admin-status--sold_out { color: #92400e; background: #fef3c7; }
+.admin-kitchen-policy-note { display: flex; align-items: center; gap: 7px; margin: 0; padding: 12px 16px; border-top: 1px solid var(--line); color: #5e756c; background: #f8fbf9; font-size: 10px; }
+.admin-kitchen-policy-note svg { flex: 0 0 auto; color: #059669; }
 
 @media (max-width: 1100px) {
   .management-metrics,
   .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .managed-order__body { grid-template-columns: 1fr 1fr; }
   .managed-order__fulfillment { grid-template-columns: 1fr; }
+  .admin-kitchen-card__main { grid-template-columns: minmax(240px, 1fr) auto; }
+  .admin-kitchen-card__stats { grid-column: 1 / -1; grid-row: 2; }
+  .subscription-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
@@ -2686,6 +2771,12 @@ h1, h2, h3, .brand { font-family: "Be Vietnam Pro", sans-serif; }
   .order-requirements__grid { grid-template-columns: 1fr; }
   .managed-order__actions .button { width: 100%; }
   .management-panel__heading { align-items: flex-start; flex-direction: column; }
+  .admin-kitchen-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-kitchen-card__main,
+  .admin-kitchen-card__detail { grid-template-columns: 1fr; }
+  .admin-kitchen-card__stats { grid-column: auto; grid-row: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-kitchen-card__main > .button { width: 100%; }
+  .subscription-kpi-grid { grid-template-columns: 1fr; }
   .package-manager__header,
   .package-progress,
   .package-days { padding-right: 16px; padding-left: 16px; }

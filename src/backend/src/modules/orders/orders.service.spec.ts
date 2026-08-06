@@ -16,6 +16,14 @@ describe('OrdersService kitchen schedule creation', () => {
       scheduledMeals: 7,
     };
     const rpc = jest.fn().mockResolvedValue({ data: result, error: null });
+    const offerAvailabilityQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: { id: '55555555-5555-4555-8555-555555555555' },
+        error: null,
+      }),
+    };
     const nutritionQuery = {
       select: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
@@ -39,9 +47,11 @@ describe('OrdersService kitchen schedule creation', () => {
       }),
       update: jest.fn().mockReturnValue({ eq: orderUpdateEq }),
     };
-    const from = jest.fn((table: string) =>
-      table === 'nutrition_profiles' ? nutritionQuery : orderQuery,
-    );
+    const from = jest.fn((table: string) => {
+      if (table === 'kitchen_offers') return offerAvailabilityQuery;
+      if (table === 'nutrition_profiles') return nutritionQuery;
+      return orderQuery;
+    });
     const service = new OrdersService({
       getAdminClient: jest.fn().mockReturnValue({ rpc, from }),
     } as never);
@@ -83,6 +93,34 @@ describe('OrdersService kitchen schedule creation', () => {
       }),
     );
     expect(orderUpdateEq).toHaveBeenCalledWith('id', result.id);
+  });
+
+  it('blocks a new order when the kitchen account is not active', async () => {
+    const offerAvailabilityQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    const rpc = jest.fn();
+    const service = new OrdersService({
+      getAdminClient: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue(offerAvailabilityQuery),
+        rpc,
+      }),
+    } as never);
+
+    await expect(
+      service.create(user, {
+        offerCode: 'suspended-kitchen-offer',
+        recipientName: 'Khách hàng',
+        recipientPhone: '+84901234567',
+        deliveryAddress: { line1: '227 Nguyễn Văn Cừ' },
+        idempotencyKey: 'checkout-suspended',
+        quantity: 1,
+      }),
+    ).rejects.toThrow('Gói bếp không còn khả dụng');
+
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
 

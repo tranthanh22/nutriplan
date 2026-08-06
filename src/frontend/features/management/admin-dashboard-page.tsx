@@ -8,13 +8,26 @@ import {
   LoaderCircle,
   RefreshCw,
   Salad,
+  ShieldCheck,
   Store,
   UsersRound,
   WalletCards,
   XCircle
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { getAdminDashboard, type AdminDashboardResponse, type KitchenOrderStatus } from "./management-api";
+import { AdminKitchenManagement } from "./admin-kitchen-management";
+import { AdminSubscriptionAnalytics } from "./admin-subscription-analytics";
+import {
+  getAdminDashboard,
+  getAdminKitchens,
+  getAdminSubscriptionAnalytics,
+  updateAdminKitchenStatus,
+  type AdminDashboardResponse,
+  type AdminKitchen,
+  type AdminKitchensResponse,
+  type AdminSubscriptionAnalyticsResponse,
+  type KitchenOrderStatus
+} from "./management-api";
 
 const statusLabels: Record<KitchenOrderStatus, string> = {
   pending_payment: "Chờ thanh toán",
@@ -35,18 +48,54 @@ function formatDate(value: string) {
 
 export function AdminDashboardPage() {
   const [data, setData] = useState<AdminDashboardResponse | null>(null);
+  const [kitchensData, setKitchensData] = useState<AdminKitchensResponse | null>(null);
+  const [subscriptionData, setSubscriptionData] = useState<AdminSubscriptionAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [updatingKitchenId, setUpdatingKitchenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      setData(await getAdminDashboard());
+      const [dashboard, kitchens, subscriptions] = await Promise.all([
+        getAdminDashboard(),
+        getAdminKitchens(),
+        getAdminSubscriptionAnalytics()
+      ]);
+      setData(dashboard);
+      setKitchensData(kitchens);
+      setSubscriptionData(subscriptions);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Không thể tải thống kê.");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const changeKitchenStatus = useCallback(async (
+    kitchen: AdminKitchen,
+    status: "active" | "suspended"
+  ) => {
+    setUpdatingKitchenId(kitchen.id);
+    setError("");
+    setNotice("");
+    try {
+      await updateAdminKitchenStatus(kitchen.id, status);
+      const [dashboard, kitchens] = await Promise.all([
+        getAdminDashboard(),
+        getAdminKitchens()
+      ]);
+      setData(dashboard);
+      setKitchensData(kitchens);
+      setNotice(status === "suspended"
+        ? `Đã tạm ngưng ${kitchen.name}. Bếp không thể nhận đơn mới.`
+        : `Đã cho phép ${kitchen.name} hoạt động trở lại.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Không thể cập nhật nhà bếp.");
+    } finally {
+      setUpdatingKitchenId(null);
     }
   }, []);
 
@@ -64,6 +113,7 @@ export function AdminDashboardPage() {
       </header>
 
       {error ? <div className="management-alert" role="alert"><XCircle size={19} />{error}</div> : null}
+      {notice ? <div className="management-notice" role="status"><ShieldCheck size={19} />{notice}</div> : null}
 
       {loading && !data ? (
         <div className="management-state management-state--page"><LoaderCircle className="spin" /><span>Đang tổng hợp dữ liệu hệ thống…</span></div>
@@ -79,6 +129,16 @@ export function AdminDashboardPage() {
             <AdminMetric icon={<Bot />} label="AI Insight hoàn tất" value={metrics?.aiInsights ?? 0} />
             <AdminMetric icon={<ChefHat />} label="Tỷ lệ bếp hoạt động" value={metrics?.kitchens ? `${Math.round((metrics.activeKitchens / metrics.kitchens) * 100)}%` : "0%"} />
           </section>
+
+          {subscriptionData ? <AdminSubscriptionAnalytics data={subscriptionData} /> : null}
+
+          {kitchensData ? (
+            <AdminKitchenManagement
+              data={kitchensData}
+              updatingKitchenId={updatingKitchenId}
+              onStatusChange={changeKitchenStatus}
+            />
+          ) : null}
 
           <section className="management-panel admin-recent-orders">
             <div className="management-panel__heading"><div><span className="section-kicker">HOẠT ĐỘNG GẦN ĐÂY</span><h2>Đơn hàng mới nhất</h2></div><small>{data?.generatedAt ? `Cập nhật ${formatDate(data.generatedAt)}` : ""}</small></div>

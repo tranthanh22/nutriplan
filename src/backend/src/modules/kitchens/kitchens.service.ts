@@ -16,8 +16,17 @@ export class KitchensService {
   }
 
   async offers(kitchenId: string) {
-    const { data, error } = await this.supabase
-      .getPublicClient()
+    const client = this.supabase.getPublicClient();
+    const { data: kitchen, error: kitchenError } = await client
+      .from('kitchens')
+      .select('id')
+      .eq('id', kitchenId)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (kitchenError) throw new InternalServerErrorException(kitchenError.message);
+    if (!kitchen) throw new NotFoundException('Bếp hiện không hoạt động');
+
+    const { data, error } = await client
       .from('kitchen_offers')
       .select('*, kitchen_offer_items(*, dishes(id, name, slug, image_path, dish_nutrition(*)))')
       .eq('kitchen_id', kitchenId)
