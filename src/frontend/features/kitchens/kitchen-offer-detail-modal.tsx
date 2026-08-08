@@ -12,6 +12,7 @@ import {
   MessageCircle,
   PackageCheck,
   ShieldCheck,
+  Sparkles,
   Star,
   Utensils,
   X
@@ -52,6 +53,16 @@ export function KitchenOfferDetailModal({
         </header>
 
         <div className="offer-detail__content">
+          {offer.matchScore !== undefined && (
+            <section className="offer-detail__match">
+              <div className="offer-detail__match-score"><Sparkles size={20} /><strong>{offer.matchScore}%</strong><span>phù hợp</span></div>
+              <div>
+                <h3>Vì sao NutriPlan đề xuất gói này?</h3>
+                <ul>{offer.matchReasons?.map((reason) => <li key={reason}><Check size={15} /> {reason}</li>)}</ul>
+              </div>
+            </section>
+          )}
+
           <section className="offer-detail__intro">
             <div><span className="offer-type-static">{offer.type}</span>{offer.dietTypes.map((diet) => <span className="detail-diet-tag" key={diet}>{diet}</span>)}</div>
             <p>{offer.description}</p>
@@ -60,10 +71,10 @@ export function KitchenOfferDetailModal({
           <section>
             <div className="detail-section-title"><div><Flame size={18} /><h3>Dinh dưỡng trung bình mỗi ngày</h3></div><small>Số liệu do bếp cung cấp, có thể chênh lệch ±10%</small></div>
             <div className="detail-nutrition-grid">
-              <div><span>Năng lượng</span><strong>{offer.calories}</strong><small>kcal</small></div>
-              <div><span>Protein</span><strong>{offer.protein}</strong><small>g</small></div>
-              <div><span>Carbs</span><strong>{offer.carbs}</strong><small>g</small></div>
-              <div><span>Chất béo</span><strong>{offer.fat}</strong><small>g</small></div>
+              <div><span>Năng lượng</span><strong>{offer.calories}</strong><small>{offer.nutritionMatch ? `${offer.nutritionMatch.calorieCoveragePercent}% nhu cầu tương ứng` : "kcal"}</small></div>
+              <div><span>Protein</span><strong>{offer.protein}g</strong><small>{offer.nutritionMatch ? `${offer.nutritionMatch.proteinCoveragePercent}% mục tiêu` : "mỗi ngày"}</small></div>
+              <div><span>Carbs</span><strong>{offer.carbs}g</strong><small>{offer.nutritionMatch ? `${offer.nutritionMatch.carbsCoveragePercent}% mục tiêu` : "mỗi ngày"}</small></div>
+              <div><span>Chất béo</span><strong>{offer.fat}g</strong><small>{offer.nutritionMatch ? `${offer.nutritionMatch.fatCoveragePercent}% mục tiêu` : "mỗi ngày"}</small></div>
             </div>
           </section>
 
@@ -106,7 +117,14 @@ export function KitchenOfferDetailModal({
 
         <footer className="offer-detail__footer">
           <div><span>Tổng giá gói</span><strong>{formatCurrency(offer.price)}</strong>{offer.oldPrice && <del>{formatCurrency(offer.oldPrice)}</del>}<small>≈ {formatCurrency(Math.round(offer.price / mealCount))}/bữa</small></div>
-          <button className="button button--dark" onClick={() => onOrder(offer)}>Chọn gói này <ArrowRight size={17} /></button>
+          {offer.activePackage ? (
+            <aside className="offer-detail__active-package">
+              <CalendarDays size={17} />
+              <span><strong>Gói đang hoạt động</strong><small>Đơn {offer.activePackage.orderNumber} · đến {new Intl.DateTimeFormat("vi-VN").format(new Date(`${offer.activePackage.endsOn}T00:00:00`))}</small></span>
+            </aside>
+          ) : (
+            <button className="button button--dark" onClick={() => onOrder(offer)}>Chọn gói này <ArrowRight size={17} /></button>
+          )}
         </footer>
       </article>
     </Modal>

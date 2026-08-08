@@ -395,3 +395,461 @@ set
   verified_purchase = excluded.verified_purchase,
   reviewed_on = excluded.reviewed_on,
   is_visible = excluded.is_visible;
+
+-- ============================================================================
+-- CATALOG EXPANSION: 50 DISHES + 20 PARTNER KITCHENS
+-- Mock/demo data. Slugs and offer codes make this block safe to run repeatedly.
+-- ============================================================================
+
+begin;
+
+create temporary table nutriplan_dish_seed (
+  seed_order integer primary key,
+  slug text not null,
+  name text not null,
+  ingredient_summary text not null,
+  dish_kind text not null,
+  meal_types text[] not null,
+  cuisine text not null
+) on commit drop;
+
+insert into nutriplan_dish_seed
+  (seed_order, slug, name, ingredient_summary, dish_kind, meal_types, cuisine)
+values
+  (1, 'chao-ga-nam-huong', 'Cháo gà nấm hương', 'Ức gà, gạo tẻ, nấm hương', 'meal', array['breakfast'], 'Việt Nam'),
+  (2, 'com-ga-gao-lut-rau-cu', 'Cơm gà gạo lứt rau củ', 'Ức gà, gạo lứt, bông cải xanh', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (3, 'ca-hoi-ap-chao-khoai-lang', 'Cá hồi áp chảo khoai lang', 'Cá hồi, khoai lang, măng tây', 'meal', array['lunch','dinner'], 'Âu'),
+  (4, 'bo-xao-bong-cai', 'Bò xào bông cải', 'Thịt bò nạc, bông cải xanh, ớt chuông', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (5, 'bun-ca-thi-la', 'Bún cá thì là', 'Cá basa, bún gạo, thì là', 'meal', array['breakfast','lunch'], 'Việt Nam'),
+  (6, 'pho-ga-it-beo', 'Phở gà ít béo', 'Ức gà, bánh phở, hành lá', 'meal', array['breakfast','lunch'], 'Việt Nam'),
+  (7, 'com-tam-uc-ga-nuong', 'Cơm tấm ức gà nướng', 'Ức gà, gạo tấm, dưa leo', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (8, 'mien-ga-nam', 'Miến gà nấm', 'Ức gà, miến dong, nấm đông cô', 'meal', array['breakfast','dinner'], 'Việt Nam'),
+  (9, 'ca-basa-hap-gung', 'Cá basa hấp gừng', 'Cá basa, gừng, cải thìa', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (10, 'tom-xao-hat-dieu', 'Tôm xào hạt điều', 'Tôm, hạt điều, ớt chuông', 'meal', array['lunch','dinner'], 'Châu Á'),
+  (11, 'dau-hu-sot-nam', 'Đậu hũ sốt nấm', 'Đậu hũ, nấm đùi gà, cải bó xôi', 'meal', array['lunch','dinner'], 'Chay'),
+  (12, 'ca-ri-dau-ga', 'Cà ri đậu gà', 'Đậu gà, cà chua, nước cốt dừa', 'meal', array['lunch','dinner'], 'Ấn Độ'),
+  (13, 'bun-gao-lut-dau-hu', 'Bún gạo lứt đậu hũ', 'Bún gạo lứt, đậu hũ, rau xà lách', 'meal', array['lunch','dinner'], 'Chay'),
+  (14, 'quinoa-rau-cu-nuong', 'Quinoa rau củ nướng', 'Hạt quinoa, bí ngòi, ớt chuông', 'meal', array['lunch','dinner'], 'Địa Trung Hải'),
+  (15, 'salad-ga-bo', 'Salad gà bơ', 'Ức gà, quả bơ, rau xà lách', 'meal', array['lunch','dinner'], 'Âu'),
+  (16, 'salad-ca-ngu-dau-trang', 'Salad cá ngừ đậu trắng', 'Cá ngừ, đậu trắng, cà chua bi', 'meal', array['lunch','dinner'], 'Địa Trung Hải'),
+  (17, 'pasta-nguyen-cam-bo-bam', 'Pasta nguyên cám bò bằm', 'Mì Ý nguyên cám, thịt bò nạc, cà chua', 'meal', array['lunch','dinner'], 'Ý'),
+  (18, 'mi-soba-ga-me', 'Mì soba gà mè', 'Mì soba, ức gà, mè rang', 'meal', array['lunch','dinner'], 'Nhật Bản'),
+  (19, 'com-bo-bulgogi-fit', 'Cơm bò bulgogi fit', 'Thịt bò nạc, gạo lứt, kim chi', 'meal', array['lunch','dinner'], 'Hàn Quốc'),
+  (20, 'ca-thu-sot-ca', 'Cá thu sốt cà', 'Cá thu, cà chua, gạo lứt', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (21, 'ga-nuong-chanh-sa', 'Gà nướng chanh sả', 'Ức gà, sả, chanh', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (22, 'thit-nac-heo-kho-tieu', 'Thịt nạc heo kho tiêu', 'Thịt nạc heo, tiêu đen, trứng cút', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (23, 'trung-cuon-rau-cu', 'Trứng cuộn rau củ', 'Trứng gà, cà rốt, hành lá', 'meal', array['breakfast','lunch'], 'Châu Á'),
+  (24, 'chao-yen-mach-ca-hoi', 'Cháo yến mạch cá hồi', 'Yến mạch, cá hồi, cải bó xôi', 'meal', array['breakfast'], 'Âu'),
+  (25, 'soup-bi-do-ga-xe', 'Soup bí đỏ gà xé', 'Bí đỏ, ức gà, sữa tươi', 'meal', array['breakfast','dinner'], 'Âu'),
+  (26, 'soup-dau-lang-ca-chua', 'Soup đậu lăng cà chua', 'Đậu lăng, cà chua, cần tây', 'meal', array['lunch','dinner'], 'Địa Trung Hải'),
+  (27, 'com-nam-tempeh', 'Cơm nấm tempeh', 'Tempeh, gạo lứt, nấm đùi gà', 'meal', array['lunch','dinner'], 'Chay'),
+  (28, 'burrito-bowl-ga', 'Burrito bowl gà', 'Ức gà, gạo lứt, đậu đen', 'meal', array['lunch','dinner'], 'Mexico'),
+  (29, 'poke-ca-hoi-gao-lut', 'Poke cá hồi gạo lứt', 'Cá hồi, gạo lứt, rong biển', 'meal', array['lunch','dinner'], 'Hawaii'),
+  (30, 'com-ga-teriyaki-it-duong', 'Cơm gà teriyaki ít đường', 'Ức gà, gạo lứt, bông cải xanh', 'meal', array['lunch','dinner'], 'Nhật Bản'),
+  (31, 'bo-ap-chao-quinoa', 'Bò áp chảo quinoa', 'Thịt bò nạc, hạt quinoa, bí ngòi', 'meal', array['lunch','dinner'], 'Âu'),
+  (32, 'ca-dieu-hong-hap-xi-dau', 'Cá diêu hồng hấp xì dầu', 'Cá diêu hồng, gừng, hành lá', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (33, 'goi-cuon-tom-gao-lut', 'Gỏi cuốn tôm gạo lứt', 'Tôm, bánh tráng gạo lứt, rau xà lách', 'meal', array['lunch','dinner'], 'Việt Nam'),
+  (34, 'banh-mi-nguyen-cam-trung-bo', 'Bánh mì nguyên cám trứng bơ', 'Bánh mì nguyên cám, trứng gà, quả bơ', 'meal', array['breakfast'], 'Âu'),
+  (35, 'pancake-yen-mach-chuoi', 'Pancake yến mạch chuối', 'Yến mạch, chuối, trứng gà', 'meal', array['breakfast'], 'Âu'),
+  (36, 'overnight-oats-berries', 'Overnight oats berries', 'Yến mạch, sữa chua Hy Lạp, dâu tây', 'meal', array['breakfast'], 'Âu'),
+  (37, 'sua-chua-hy-lap-trai-cay', 'Sữa chua Hy Lạp trái cây', 'Sữa chua Hy Lạp, dâu tây, hạt chia', 'snack', array['snack'], 'Âu'),
+  (38, 'tao-bo-dau-phong', 'Táo bơ đậu phộng', 'Táo, bơ đậu phộng, hạt chia', 'snack', array['snack'], 'Âu'),
+  (39, 'hat-rang-khong-muoi', 'Hạt rang không muối', 'Hạnh nhân, hạt điều, hạt bí', 'snack', array['snack'], 'Quốc tế'),
+  (40, 'thanh-yen-mach-cacao', 'Thanh yến mạch cacao', 'Yến mạch, cacao, chà là', 'snack', array['snack'], 'Âu'),
+  (41, 'trung-luoc-ca-chua-bi', 'Trứng luộc cà chua bi', 'Trứng gà, cà chua bi, rau xà lách', 'snack', array['snack'], 'Quốc tế'),
+  (42, 'dau-nanh-nhat-luoc', 'Đậu nành Nhật luộc', 'Đậu nành Nhật, muối biển, mè rang', 'snack', array['snack'], 'Nhật Bản'),
+  (43, 'pudding-hat-chia-xoai', 'Pudding hạt chia xoài', 'Hạt chia, xoài, sữa hạnh nhân', 'snack', array['snack'], 'Âu'),
+  (44, 'khoai-lang-sua-chua', 'Khoai lang sữa chua', 'Khoai lang, sữa chua Hy Lạp, quế', 'snack', array['snack'], 'Quốc tế'),
+  (45, 'smoothie-chuoi-yen-mach', 'Smoothie chuối yến mạch', 'Chuối, yến mạch, sữa tươi', 'drink', array['snack'], 'Quốc tế'),
+  (46, 'sinh-to-bo-cai-bo-xoi', 'Sinh tố bơ cải bó xôi', 'Quả bơ, cải bó xôi, sữa hạnh nhân', 'drink', array['snack'], 'Quốc tế'),
+  (47, 'sua-hat-hanh-nhan-khong-duong', 'Sữa hạt hạnh nhân không đường', 'Hạnh nhân, nước lọc, chà là', 'drink', array['breakfast','snack'], 'Quốc tế'),
+  (48, 'nuoc-ep-cam-ca-rot', 'Nước ép cam cà rốt', 'Cam, cà rốt, gừng', 'drink', array['breakfast','snack'], 'Quốc tế'),
+  (49, 'protein-cacao-lanh', 'Protein cacao lạnh', 'Sữa tươi, whey protein, cacao', 'drink', array['snack'], 'Thể thao'),
+  (50, 'tra-xanh-chanh-bac-ha', 'Trà xanh chanh bạc hà', 'Trà xanh, chanh, bạc hà', 'drink', array['snack'], 'Châu Á');
+
+insert into public.dishes (
+  slug, name, short_description, ingredient_summary, image_path,
+  meal_types, cuisine, prep_time_minutes, cook_time_minutes,
+  difficulty, status, published_at, dish_kind
+)
+select
+  slug,
+  name,
+  case dish_kind
+    when 'drink' then name || ' không thêm đường tinh luyện, phù hợp dùng trong ngày.'
+    when 'snack' then name || ' với khẩu phần gọn nhẹ và dinh dưỡng được định lượng.'
+    else name || ' cân bằng đạm, tinh bột và rau theo khẩu phần NutriPlan.'
+  end,
+  ingredient_summary,
+  case dish_kind
+    when 'drink' then 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=1200&q=85'
+    when 'snack' then 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?auto=format&fit=crop&w=1200&q=85'
+    else 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=85'
+  end,
+  meal_types::public.meal_type[],
+  cuisine,
+  case when dish_kind = 'drink' then 5 else 10 + seed_order % 8 end,
+  case when dish_kind = 'drink' then 0 when dish_kind = 'snack' then 8 else 15 + seed_order % 20 end,
+  case when dish_kind = 'drink' then 1 else 1 + seed_order % 3 end,
+  'active',
+  now(),
+  dish_kind::public.dish_kind
+from nutriplan_dish_seed
+on conflict (slug) do update
+set
+  name = excluded.name,
+  short_description = excluded.short_description,
+  ingredient_summary = excluded.ingredient_summary,
+  image_path = excluded.image_path,
+  meal_types = excluded.meal_types,
+  cuisine = excluded.cuisine,
+  prep_time_minutes = excluded.prep_time_minutes,
+  cook_time_minutes = excluded.cook_time_minutes,
+  difficulty = excluded.difficulty,
+  status = 'active',
+  published_at = excluded.published_at,
+  dish_kind = excluded.dish_kind,
+  updated_at = now();
+
+insert into public.dish_nutrition (
+  dish_id, serving_name, serving_grams, calories_kcal,
+  protein_g, carbs_g, fat_g, fiber_g, sodium_mg, source_note,
+  verified_at, cholesterol_mg, potassium_mg, calcium_mg, iron_mg,
+  magnesium_mg, vitamin_a_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_b12_mcg
+)
+select
+  d.id,
+  '1 khẩu phần',
+  case s.dish_kind when 'meal' then 380 when 'snack' then 180 else 350 end,
+  case s.dish_kind
+    when 'meal' then 360 + (s.seed_order % 9) * 35
+    when 'snack' then 150 + (s.seed_order % 5) * 25
+    else 60 + (s.seed_order % 5) * 35
+  end,
+  case s.dish_kind when 'meal' then 18 + (s.seed_order % 7) * 5 when 'snack' then 6 + (s.seed_order % 4) * 3 else 2 + (s.seed_order % 5) * 4 end,
+  case s.dish_kind when 'meal' then 35 + (s.seed_order % 8) * 6 when 'snack' then 14 + (s.seed_order % 5) * 5 else 10 + (s.seed_order % 6) * 7 end,
+  case s.dish_kind when 'meal' then 10 + (s.seed_order % 6) * 3 when 'snack' then 5 + (s.seed_order % 5) * 3 else 1 + (s.seed_order % 4) * 2 end,
+  3 + (s.seed_order % 8),
+  case s.dish_kind when 'meal' then 280 + (s.seed_order % 8) * 55 else 40 + (s.seed_order % 5) * 35 end,
+  'Số liệu mock ước tính theo một khẩu phần; cần chuyên gia xác minh trước khi dùng lâm sàng.',
+  now(),
+  case when s.ingredient_summary ilike any (array['%gà%','%bò%','%trứng%','%cá%','%tôm%']) then 45 + (s.seed_order % 5) * 18 else 0 end,
+  280 + (s.seed_order % 10) * 45,
+  45 + (s.seed_order % 7) * 18,
+  1.2 + (s.seed_order % 6) * 0.5,
+  35 + (s.seed_order % 8) * 8,
+  120 + (s.seed_order % 9) * 45,
+  8 + (s.seed_order % 8) * 5,
+  case when s.ingredient_summary ilike any (array['%cá%','%trứng%','%sữa%']) then 1.5 + (s.seed_order % 4) * 0.8 else 0 end,
+  case when s.ingredient_summary ilike any (array['%gà%','%bò%','%trứng%','%cá%','%tôm%','%sữa%']) then 0.7 + (s.seed_order % 5) * 0.4 else 0 end
+from nutriplan_dish_seed s
+join public.dishes d on d.slug = s.slug
+on conflict (dish_id) do update
+set
+  serving_name = excluded.serving_name,
+  serving_grams = excluded.serving_grams,
+  calories_kcal = excluded.calories_kcal,
+  protein_g = excluded.protein_g,
+  carbs_g = excluded.carbs_g,
+  fat_g = excluded.fat_g,
+  fiber_g = excluded.fiber_g,
+  sodium_mg = excluded.sodium_mg,
+  source_note = excluded.source_note,
+  verified_at = excluded.verified_at,
+  cholesterol_mg = excluded.cholesterol_mg,
+  potassium_mg = excluded.potassium_mg,
+  calcium_mg = excluded.calcium_mg,
+  iron_mg = excluded.iron_mg,
+  magnesium_mg = excluded.magnesium_mg,
+  vitamin_a_mcg = excluded.vitamin_a_mcg,
+  vitamin_c_mg = excluded.vitamin_c_mg,
+  vitamin_d_mcg = excluded.vitamin_d_mcg,
+  vitamin_b12_mcg = excluded.vitamin_b12_mcg,
+  updated_at = now();
+
+with ingredient_seed as (
+  select min(btrim(value)) as name, lower(btrim(value)) as normalized_name
+  from nutriplan_dish_seed s
+  cross join lateral regexp_split_to_table(s.ingredient_summary, '\s*,\s*') as value
+  group by lower(btrim(value))
+)
+insert into public.ingredients (name, normalized_name, default_unit, is_active)
+select name, normalized_name, 'g', true
+from ingredient_seed
+on conflict (normalized_name) do update
+set name = excluded.name, default_unit = excluded.default_unit, is_active = true, updated_at = now();
+
+with expanded as (
+  select
+    s.slug,
+    btrim(value) as ingredient_name,
+    ingredient_order
+  from nutriplan_dish_seed s
+  cross join lateral regexp_split_to_table(s.ingredient_summary, '\s*,\s*')
+    with ordinality as ingredient(value, ingredient_order)
+)
+insert into public.dish_ingredients (
+  dish_id, ingredient_id, quantity, unit, preparation_note, is_optional, sort_order
+)
+select
+  d.id,
+  i.id,
+  case e.ingredient_order when 1 then 150 when 2 then 100 else 60 end,
+  'g',
+  'Sơ chế sạch và định lượng theo khẩu phần',
+  false,
+  e.ingredient_order::smallint
+from expanded e
+join public.dishes d on d.slug = e.slug
+join public.ingredients i on i.normalized_name = lower(e.ingredient_name)
+on conflict (dish_id, ingredient_id) do update
+set
+  quantity = excluded.quantity,
+  unit = excluded.unit,
+  preparation_note = excluded.preparation_note,
+  is_optional = excluded.is_optional,
+  sort_order = excluded.sort_order;
+
+insert into public.recipes (
+  dish_id, instructions, cooking_tips, storage_instructions, safety_notes, version
+)
+select
+  d.id,
+  case s.dish_kind
+    when 'drink' then jsonb_build_array(
+      'Cân đủ nguyên liệu và làm lạnh trước khi pha.',
+      'Xay hoặc hãm đến khi đồng nhất, không thêm đường tinh luyện.',
+      'Chia đúng một khẩu phần và dùng ngay.'
+    )
+    when 'snack' then jsonb_build_array(
+      'Chuẩn bị nguyên liệu theo đúng định lượng.',
+      'Trộn hoặc chế biến tối giản, hạn chế dầu và đường.',
+      'Chia một khẩu phần trước khi dùng.'
+    )
+    else jsonb_build_array(
+      'Sơ chế và cân đủ nguyên liệu theo khẩu phần.',
+      'Nấu chín phần đạm và tinh bột, ưu tiên hấp, luộc, áp chảo ít dầu.',
+      'Hoàn thiện với rau, nêm vừa ăn và dùng khi còn ấm.'
+    )
+  end,
+  'Có thể điều chỉnh gia vị nhưng không tự ý tăng dầu, đường hoặc nước sốt.',
+  case when s.dish_kind = 'drink' then 'Nên dùng ngay sau khi pha.' else 'Bảo quản lạnh tối đa 24 giờ trong hộp kín.' end,
+  'Các giá trị dinh dưỡng là dữ liệu mock; kiểm tra dị ứng cá nhân trước khi dùng.',
+  1
+from nutriplan_dish_seed s
+join public.dishes d on d.slug = s.slug
+on conflict (dish_id) do update
+set
+  instructions = excluded.instructions,
+  cooking_tips = excluded.cooking_tips,
+  storage_instructions = excluded.storage_instructions,
+  safety_notes = excluded.safety_notes,
+  updated_at = now();
+
+create temporary table nutriplan_kitchen_seed (
+  seed_order integer primary key,
+  slug text not null,
+  name text not null,
+  district text not null,
+  specialty text not null
+) on commit drop;
+
+insert into nutriplan_kitchen_seed
+  (seed_order, slug, name, district, specialty)
+values
+  (1, 'healthy-hub-saigon', 'Healthy Hub Sài Gòn', 'Quận 1', 'Cân bằng'),
+  (2, 'bep-gao-lut', 'Bếp Gạo Lứt', 'Quận 3', 'Eat clean'),
+  (3, 'protein-station', 'Protein Station', 'Quận 10', 'Giàu protein'),
+  (4, 'vegan-bloom', 'Vegan Bloom', 'Quận 7', 'Thuần chay'),
+  (5, 'low-carb-lab', 'Low Carb Lab', 'Thành phố Thủ Đức', 'Low-carb'),
+  (6, 'bep-thuan-viet-fit', 'Bếp Thuần Việt Fit', 'Quận 5', 'Cơm Việt'),
+  (7, 'fit-meal-thu-duc', 'Fit Meal Thủ Đức', 'Thành phố Thủ Đức', 'Thể thao'),
+  (8, 'ocean-fit-kitchen', 'Ocean Fit Kitchen', 'Quận 4', 'Hải sản'),
+  (9, 'daily-macro', 'Daily Macro', 'Quận Bình Thạnh', 'Tùy chỉnh macro'),
+  (10, 'bep-moc-healthy', 'Bếp Mộc Healthy', 'Quận Phú Nhuận', 'Ít chế biến'),
+  (11, 'green-fork', 'Green Fork', 'Quận 2', 'Nhiều rau'),
+  (12, 'gym-food-factory', 'Gym Food Factory', 'Quận Tân Bình', 'Tăng cơ'),
+  (13, 'fresh-bento', 'Fresh Bento', 'Quận 1', 'Bento'),
+  (14, 'bep-chay-sen', 'Bếp Chay Sen', 'Quận 6', 'Chay'),
+  (15, 'wellness-kitchen', 'Wellness Kitchen', 'Quận 7', 'Ít muối'),
+  (16, 'urban-healthy', 'Urban Healthy', 'Quận 3', 'Văn phòng'),
+  (17, 'com-nha-fit', 'Cơm Nhà Fit', 'Quận Gò Vấp', 'Cơm nhà'),
+  (18, 'nutribox-express', 'NutriBox Express', 'Quận Tân Phú', 'Giao nhanh'),
+  (19, 'vita-meal', 'Vita Meal', 'Quận Bình Thạnh', 'Vitamin và khoáng chất'),
+  (20, 'balance-bento', 'Balance Bento', 'Quận 11', 'Cân bằng');
+
+insert into public.kitchens (
+  slug, name, description, logo_path, phone, email, address_text,
+  status, rating_average, rating_count
+)
+select
+  slug,
+  name,
+  'Bếp đối tác chuyên thực đơn ' || lower(specialty) || ', công khai khẩu phần và thông tin dinh dưỡng.',
+  'https://images.unsplash.com/photo-1556911220-bff31c812dba?auto=format&fit=crop&w=600&q=85',
+  '0911' || lpad(seed_order::text, 6, '0'),
+  slug || '@example.test',
+  district || ', TP. Hồ Chí Minh',
+  'active',
+  4.3 + (seed_order % 7) * 0.1,
+  35 + seed_order * 9
+from nutriplan_kitchen_seed
+on conflict (slug) do update
+set
+  name = excluded.name,
+  description = excluded.description,
+  logo_path = excluded.logo_path,
+  phone = excluded.phone,
+  email = excluded.email,
+  address_text = excluded.address_text,
+  status = 'active',
+  rating_average = excluded.rating_average,
+  rating_count = excluded.rating_count,
+  updated_at = now();
+
+insert into public.kitchen_service_areas (
+  kitchen_id, city, district, ward, delivery_fee, minimum_order_amount, is_active
+)
+select
+  k.id,
+  'TP. Hồ Chí Minh',
+  s.district,
+  'Tất cả phường',
+  case when s.seed_order % 3 = 0 then 0 else 10000 + (s.seed_order % 2) * 5000 end,
+  case when s.seed_order % 4 = 1 then 0 else 50000 end,
+  true
+from nutriplan_kitchen_seed s
+join public.kitchens k on k.slug = s.slug
+on conflict (kitchen_id, city, district, ward) do update
+set
+  delivery_fee = excluded.delivery_fee,
+  minimum_order_amount = excluded.minimum_order_amount,
+  is_active = true;
+
+with offer_seed as (
+  select
+    s.*,
+    case s.seed_order % 4 when 1 then null when 2 then 7 when 3 then 30 else 120 end as package_days,
+    case s.seed_order % 4 when 1 then 1 else 1 + (s.seed_order % 3) end as meals_per_day
+  from nutriplan_kitchen_seed s
+)
+insert into public.kitchen_offers (
+  code, kitchen_id, type, name, description, image_path, price_amount,
+  old_price_amount, currency, delivery_fee, package_days, meals_per_day,
+  calories_kcal, protein_g, carbs_g, fat_g, diet_types, menu_highlights,
+  included_items, delivery_description, badge, distance_km,
+  order_cutoff_hours, capacity_per_day, cancellation_policy, status, available_from
+)
+select
+  s.slug || '-signature-' || coalesce(s.package_days::text, 'single'),
+  k.id,
+  case when s.package_days is null then 'single_meal' else 'package' end::public.offer_type,
+  s.name || ' · ' || case when s.package_days is null then 'Món lẻ' else s.package_days || ' ngày' end,
+  'Gói ' || lower(s.specialty) || ' với món thay đổi theo lịch và thông tin dinh dưỡng mỗi ngày.',
+  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=85',
+  case s.package_days when 7 then 799000 when 30 then 2990000 when 120 then 10990000 else 79000 end,
+  case s.package_days when 7 then 899000 when 30 then 3390000 when 120 then 12490000 else null end,
+  'VND',
+  0,
+  s.package_days,
+  s.meals_per_day,
+  case when s.package_days is null then 580 else 520 * s.meals_per_day end,
+  case when s.package_days is null then 38 else 35 * s.meals_per_day end,
+  case when s.package_days is null then 62 else 58 * s.meals_per_day end,
+  case when s.package_days is null then 18 else 17 * s.meals_per_day end,
+  array[s.specialty, 'Cân bằng'],
+  array['Món thay đổi theo ngày', 'Công khai calorie và macro', 'Hỗ trợ ghi chú dị ứng'],
+  array[
+    case when s.package_days is null then '1 khẩu phần' else s.package_days || ' ngày theo lịch' end,
+    'Theo dõi trạng thái từng món',
+    'Yêu cầu đổi món trước khi chuẩn bị'
+  ],
+  'Giao theo khung giờ đã chọn · Theo dõi trên NutriPlan',
+  case s.seed_order % 4 when 1 then 'Món mới' when 2 then '7 ngày' when 3 then 'Tiết kiệm' else 'Dài hạn' end,
+  1.0 + s.seed_order * 0.35,
+  12,
+  40 + s.seed_order * 2,
+  'Có thể đổi lịch trước 20:00 ngày hôm trước; món đã chuẩn bị không được hoàn.',
+  'active',
+  current_date
+from offer_seed s
+join public.kitchens k on k.slug = s.slug
+on conflict (code) where code is not null do update
+set
+  kitchen_id = excluded.kitchen_id,
+  type = excluded.type,
+  name = excluded.name,
+  description = excluded.description,
+  image_path = excluded.image_path,
+  price_amount = excluded.price_amount,
+  old_price_amount = excluded.old_price_amount,
+  package_days = excluded.package_days,
+  meals_per_day = excluded.meals_per_day,
+  calories_kcal = excluded.calories_kcal,
+  protein_g = excluded.protein_g,
+  carbs_g = excluded.carbs_g,
+  fat_g = excluded.fat_g,
+  diet_types = excluded.diet_types,
+  menu_highlights = excluded.menu_highlights,
+  included_items = excluded.included_items,
+  delivery_description = excluded.delivery_description,
+  badge = excluded.badge,
+  distance_km = excluded.distance_km,
+  capacity_per_day = excluded.capacity_per_day,
+  cancellation_policy = excluded.cancellation_policy,
+  status = 'active',
+  available_from = excluded.available_from,
+  updated_at = now();
+
+with ranked_dishes as (
+  select
+    d.id,
+    row_number() over (order by s.seed_order) as dish_number,
+    count(*) over () as dish_count
+  from nutriplan_dish_seed s
+  join public.dishes d on d.slug = s.slug
+),
+offer_seed as (
+  select
+    s.seed_order,
+    ko.id as offer_id,
+    ko.package_days,
+    ko.meals_per_day
+  from nutriplan_kitchen_seed s
+  join public.kitchen_offers ko
+    on ko.code = s.slug || '-signature-' || coalesce(
+      (case s.seed_order % 4 when 1 then null when 2 then 7 when 3 then 30 else 120 end)::text,
+      'single'
+    )
+),
+slots as (
+  select
+    o.*,
+    day_offset,
+    meal_position,
+    case meal_position when 1 then 'breakfast' when 2 then 'lunch' else 'dinner' end::public.meal_type as meal_type
+  from offer_seed o
+  cross join lateral generate_series(0, case when o.package_days is null then 0 else least(o.package_days, 7) - 1 end) day_offset
+  cross join lateral generate_series(1, o.meals_per_day) meal_position
+)
+insert into public.kitchen_offer_items (
+  offer_id, dish_id, day_offset, meal_type, quantity, is_substitutable, sort_order
+)
+select
+  s.offer_id,
+  d.id,
+  s.day_offset,
+  s.meal_type,
+  1,
+  true,
+  (s.meal_position - 1)::smallint
+from slots s
+join ranked_dishes d
+  on d.dish_number = ((s.seed_order * 5 + s.day_offset * 3 + s.meal_position - 1) % d.dish_count) + 1
+on conflict (offer_id, day_offset, meal_type, sort_order) do update
+set
+  dish_id = excluded.dish_id,
+  quantity = excluded.quantity,
+  is_substitutable = excluded.is_substitutable;
+
+commit;

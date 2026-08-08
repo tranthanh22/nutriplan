@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -40,6 +41,15 @@ export class OrdersService {
   }
 
   async create(user: AuthUser, dto: CreateKitchenOrderDto) {
+    if (
+      this.timeToMinutes(dto.deliveryWindowEnd) <=
+      this.timeToMinutes(dto.deliveryWindowStart)
+    ) {
+      throw new BadRequestException(
+        'Giờ kết thúc giao hàng phải sau giờ bắt đầu',
+      );
+    }
+
     const admin = this.supabase.getAdminClient();
     const { data: offer, error: offerError } = await admin
       .from('kitchen_offers')
@@ -52,21 +62,38 @@ export class OrdersService {
     if (!offer) throw new BadRequestException('Gói bếp không còn khả dụng');
 
     const { data, error } = await admin.rpc('create_mock_kitchen_order_schedule', {
-        p_user_id: user.id,
-        p_offer_code: dto.offerCode,
-        p_recipient_name: dto.recipientName,
-        p_recipient_phone: dto.recipientPhone,
-        p_delivery_address: dto.deliveryAddress,
-        p_delivery_note: dto.deliveryNote ?? null,
-        p_idempotency_key: dto.idempotencyKey,
-        p_quantity: dto.quantity,
-      });
+      p_user_id: user.id,
+      p_offer_code: dto.offerCode,
+      p_recipient_name: dto.recipientName,
+      p_recipient_phone: dto.recipientPhone,
+      p_delivery_address: dto.deliveryAddress,
+      p_delivery_note: dto.deliveryNote ?? null,
+      p_delivery_window_start: dto.deliveryWindowStart,
+      p_delivery_window_end: dto.deliveryWindowEnd,
+      p_idempotency_key: dto.idempotencyKey,
+      p_quantity: dto.quantity,
+    });
     if (error) {
       if (error.message.includes('kitchen_offer_not_available')) {
         throw new BadRequestException('Gói bếp không còn khả dụng');
       }
       if (error.message.includes('invalid_kitchen_order_input')) {
         throw new BadRequestException('Thông tin nhận món chưa hợp lệ');
+      }
+      if (error.message.includes('invalid_delivery_window')) {
+        throw new BadRequestException('Khung giờ giao hàng chưa hợp lệ');
+      }
+      if (error.message.includes('overlapping_kitchen_package')) {
+        const [, orderNumber, endDate] =
+          error.message.match(/overlapping_kitchen_package:([^:]+):(\d{4}-\d{2}-\d{2})/) ?? [];
+        const formattedEndDate = endDate
+          ? new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC' }).format(
+              new Date(`${endDate}T00:00:00.000Z`),
+            )
+          : null;
+        throw new ConflictException(
+          `Bạn đang có gói này hoạt động${orderNumber ? ` (${orderNumber})` : ''}${formattedEndDate ? ` đến ${formattedEndDate}` : ''}. Hãy hoàn thành hoặc hủy gói hiện tại trước khi mua lại.`,
+        );
       }
       throw new InternalServerErrorException(error.message);
     }
@@ -78,6 +105,11 @@ export class OrdersService {
       await this.snapshotCustomerNutrition(admin, user.id, createdOrderId);
     }
     return data;
+  }
+
+  private timeToMinutes(value: string) {
+    const [hours, minutes] = value.split(':').map(Number);
+    return hours * 60 + minutes;
   }
 
   async kitchenDashboard(user: AuthUser) {

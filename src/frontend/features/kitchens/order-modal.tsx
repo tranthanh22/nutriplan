@@ -36,6 +36,8 @@ export function OrderModal({
     "227 Nguyễn Văn Cừ, Quận 5, TP.HCM"
   );
   const [deliveryNote, setDeliveryNote] = useState("Không có");
+  const [deliveryWindowStart, setDeliveryWindowStart] = useState("11:30");
+  const [deliveryWindowEnd, setDeliveryWindowEnd] = useState("12:30");
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -53,6 +55,8 @@ export function OrderModal({
           recipientPhone,
           deliveryAddress: { line1: deliveryAddress },
           deliveryNote,
+          deliveryWindowStart,
+          deliveryWindowEnd,
           idempotencyKey,
           quantity
         })
@@ -95,7 +99,27 @@ export function OrderModal({
           <label>Họ tên người nhận<input value={recipientName} onChange={(event) => setRecipientName(event.target.value)} /></label>
           <div className="form-grid">
             <label>Số điện thoại<input value={recipientPhone} onChange={(event) => setRecipientPhone(event.target.value)} /></label>
-            <label>Khung giờ giao<select defaultValue="12:00 – 12:30"><option>11:30 – 12:00</option><option>12:00 – 12:30</option><option>12:30 – 13:00</option></select></label>
+            <div className="delivery-window-field">
+              <span>Khung giờ giao mỗi ngày</span>
+              <div className="delivery-window-inputs">
+                <label>
+                  <span>Từ</span>
+                  <input
+                    type="time"
+                    value={deliveryWindowStart}
+                    onChange={(event) => setDeliveryWindowStart(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Đến</span>
+                  <input
+                    type="time"
+                    value={deliveryWindowEnd}
+                    onChange={(event) => setDeliveryWindowEnd(event.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
           </div>
           <label>Địa chỉ giao<input value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} /></label>
           <label>Dị ứng hoặc ghi chú<input value={deliveryNote} onChange={(event) => setDeliveryNote(event.target.value)} /></label>
@@ -117,6 +141,7 @@ export function OrderModal({
           <div className="price-breakdown">
             <span>Tạm tính <strong>{formatCurrency(offer.price * quantity)}</strong></span>
             <span>Phí giao <strong>{formatCurrency(0)}</strong></span>
+            <span>Khung giờ giao <strong>{deliveryWindowStart} – {deliveryWindowEnd}</strong></span>
             <span className="price-breakdown__total">Tổng cộng <strong>{formatCurrency(offer.price * quantity)}</strong></span>
           </div>
           {subscribed && <div className="plus-note"><Sparkles size={17} /> Khi giao thành công, món sẽ tự động vào Meal Log.</div>}
@@ -131,7 +156,10 @@ export function OrderModal({
             submitting ||
             !recipientName.trim() ||
             !recipientPhone.trim() ||
-            !deliveryAddress.trim()
+            !deliveryAddress.trim() ||
+            !deliveryWindowStart ||
+            !deliveryWindowEnd ||
+            deliveryWindowEnd <= deliveryWindowStart
           }
           onClick={() => step === 1 ? setStep(2) : void submitOrder()}
         >

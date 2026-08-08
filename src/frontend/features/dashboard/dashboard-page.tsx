@@ -433,7 +433,9 @@ function WeightTrendChart({
   const chartHeight = height - plot.top - plot.bottom;
   const points = values.map((value, index) => ({
     value,
-    x: plot.left + (index * chartWidth) / (values.length - 1),
+    x: values.length === 1
+      ? plot.left + chartWidth / 2
+      : plot.left + (index * chartWidth) / (values.length - 1),
     y: plot.top + ((maxWeight - value) / weightSpan) * chartHeight
   }));
   const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
@@ -477,6 +479,10 @@ function WeightTrendChart({
         {points.map((point, index) => {
           const showLabel = visibleLabelIndexes.has(index);
           const dateLabel = formatWeightDate(entries[index].recorded_on, timeRange);
+          const isFirst = index === 0;
+          const isLast = index === points.length - 1;
+          const valueLabelX = point.x + (isFirst ? 45 : isLast ? -45 : 0);
+          const valueLabelY = Math.max(20, point.y - 15);
           return (
             <g key={entries[index].id}>
               <circle
@@ -489,7 +495,15 @@ function WeightTrendChart({
               {showLabel ? (
                 <>
                   <text className="weight-chart__day-label" x={point.x} y={height - 13} textAnchor="middle">{dateLabel}</text>
-                  <text className="weight-chart__value-label" x={point.x} y={point.y - 14} textAnchor="middle">{`${point.value} kg`}</text>
+                  <rect
+                    className="weight-chart__value-pill"
+                    x={valueLabelX - 38}
+                    y={valueLabelY - 18}
+                    width="76"
+                    height="24"
+                    rx="8"
+                  />
+                  <text className="weight-chart__value-label" x={valueLabelX} y={valueLabelY} textAnchor="middle">{`${point.value} kg`}</text>
                 </>
               ) : null}
             </g>

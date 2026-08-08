@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsPhoneNumber,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -34,6 +35,22 @@ export class CreateKitchenOrderDto {
   @IsString()
   @MaxLength(500)
   deliveryNote?: string;
+
+  @ApiProperty({
+    description: 'Giờ bắt đầu khung giao hàng theo định dạng 24 giờ HH:mm',
+    example: '17:30',
+  })
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
+  deliveryWindowStart: string;
+
+  @ApiProperty({
+    description: 'Giờ kết thúc khung giao hàng theo định dạng 24 giờ HH:mm',
+    example: '18:30',
+  })
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
+  deliveryWindowEnd: string;
 
   @ApiProperty({ description: 'Khóa chống tạo đơn lặp' })
   @IsString()

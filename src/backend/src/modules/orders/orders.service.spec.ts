@@ -63,6 +63,8 @@ describe('OrdersService kitchen schedule creation', () => {
         recipientPhone: '+84901234567',
         deliveryAddress: { line1: '227 Nguyễn Văn Cừ' },
         deliveryNote: 'Ít cay',
+        deliveryWindowStart: '17:30',
+        deliveryWindowEnd: '18:30',
         idempotencyKey: 'checkout-one',
         quantity: 1,
       }),
@@ -75,6 +77,8 @@ describe('OrdersService kitchen schedule creation', () => {
       p_recipient_phone: '+84901234567',
       p_delivery_address: { line1: '227 Nguyễn Văn Cừ' },
       p_delivery_note: 'Ít cay',
+      p_delivery_window_start: '17:30',
+      p_delivery_window_end: '18:30',
       p_idempotency_key: 'checkout-one',
       p_quantity: 1,
     });
@@ -115,12 +119,70 @@ describe('OrdersService kitchen schedule creation', () => {
         recipientName: 'Khách hàng',
         recipientPhone: '+84901234567',
         deliveryAddress: { line1: '227 Nguyễn Văn Cừ' },
+        deliveryWindowStart: '06:30',
+        deliveryWindowEnd: '07:30',
         idempotencyKey: 'checkout-suspended',
         quantity: 1,
       }),
     ).rejects.toThrow('Gói bếp không còn khả dụng');
 
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('rejects a delivery window whose end is not after its start', async () => {
+    const service = new OrdersService({} as never);
+
+    await expect(
+      service.create(user, {
+        offerCode: 'fitbox-balance-7',
+        recipientName: 'Khách hàng',
+        recipientPhone: '+84901234567',
+        deliveryAddress: { line1: '227 Nguyễn Văn Cừ' },
+        deliveryWindowStart: '20:00',
+        deliveryWindowEnd: '19:00',
+        idempotencyKey: 'invalid-window',
+        quantity: 1,
+      }),
+    ).rejects.toThrow('Giờ kết thúc giao hàng phải sau giờ bắt đầu');
+  });
+
+  it('returns a clear conflict when the same package overlaps', async () => {
+    const offerAvailabilityQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: { id: '55555555-5555-4555-8555-555555555555' },
+        error: null,
+      }),
+    };
+    const rpc = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        message:
+          'overlapping_kitchen_package:NP-24AE608DE14B:2026-08-13',
+      },
+    });
+    const service = new OrdersService({
+      getAdminClient: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue(offerAvailabilityQuery),
+        rpc,
+      }),
+    } as never);
+
+    await expect(
+      service.create(user, {
+        offerCode: 'fitbox-balance-7',
+        recipientName: 'Khách hàng',
+        recipientPhone: '+84901234567',
+        deliveryAddress: { line1: '227 Nguyễn Văn Cừ' },
+        deliveryWindowStart: '11:30',
+        deliveryWindowEnd: '12:30',
+        idempotencyKey: 'another-checkout',
+        quantity: 1,
+      }),
+    ).rejects.toThrow(
+      'Bạn đang có gói này hoạt động (NP-24AE608DE14B) đến 13/8/2026',
+    );
   });
 });
 

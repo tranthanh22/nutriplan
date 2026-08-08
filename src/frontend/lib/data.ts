@@ -53,6 +53,20 @@ export type KitchenOffer = {
     comment: string;
     verified: boolean;
   }[];
+  matchScore?: number;
+  matchReasons?: string[];
+  nutritionMatch?: {
+    coverageRatio: number;
+    targetCalories: number;
+    calorieCoveragePercent: number;
+    proteinCoveragePercent: number;
+    carbsCoveragePercent: number;
+    fatCoveragePercent: number;
+  };
+  activePackage?: {
+    orderNumber: string;
+    endsOn: string;
+  } | null;
 };
 
 export const meals: Meal[] = [

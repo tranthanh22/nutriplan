@@ -9,7 +9,6 @@ import {
   LoaderCircle,
   LogOut,
   Save,
-  Settings2,
   ShieldCheck,
   Sparkles
 } from "lucide-react";
@@ -199,7 +198,6 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
           <h1>Cài đặt</h1>
           <p>Tùy chỉnh trợ lý, quản lý quyền truy cập và thông tin thanh toán.</p>
         </div>
-        <span className="settings-title__icon"><Settings2 size={24} /></span>
       </header>
 
       {loading ? (
@@ -274,11 +272,9 @@ export function SettingsPage({ onChangePlan }: { onChangePlan: () => void }) {
                   : "Gói hiện tại là gói theo thời hạn và không tự động gia hạn."}
             </p>
             <div className="settings-subscription-actions">
-              {!active && (
-                <button className="button button--dark" onClick={onChangePlan}>
-                  <Sparkles size={17} /> Chọn gói Plus
-                </button>
-              )}
+              <button className="button button--dark" onClick={onChangePlan}>
+                <Sparkles size={17} /> {active ? "Chọn gói mới" : "Chọn gói Plus"}
+              </button>
               {cancellationScheduled && stripeRecurring && (
                 <button className="button button--dark" disabled={resuming} onClick={() => void resumeSubscription()} type="button">
                   {resuming ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}

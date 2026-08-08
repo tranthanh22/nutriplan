@@ -14,6 +14,7 @@ import type { AuthUser } from '../../common/auth/auth-user.interface';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CheckoutSessionParamDto } from './dto/checkout-session-param.dto';
+import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { CreateSubscriptionCheckoutDto } from './dto/create-subscription-checkout.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -62,6 +63,18 @@ export class SubscriptionsController {
   })
   billingPortal(@CurrentUser() user: AuthUser) {
     return this.subscriptions.createBillingPortal(user);
+  }
+
+  @ApiBearerAuth()
+  @Post('change-plan')
+  @ApiOperation({
+    summary: 'Đổi gói Stripe hiện tại và tính phần chênh lệch an toàn',
+  })
+  changePlan(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangeSubscriptionPlanDto,
+  ) {
+    return this.subscriptions.changePlan(user, dto.planId);
   }
 
   @ApiBearerAuth()

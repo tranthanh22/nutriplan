@@ -39,10 +39,12 @@ function readError(payload: unknown) {
 
 export function SubscriptionModal({
   hasActiveAccess,
+  currentSubscription,
   onActivated,
   onClose
 }: {
   hasActiveAccess: boolean;
+  currentSubscription: CurrentSubscription;
   onActivated: (subscription: NonNullable<CurrentSubscription>) => void;
   onClose: () => void;
 }) {
@@ -75,6 +77,12 @@ export function SubscriptionModal({
   }, []);
 
   const selectedPlan = plans.find((plan) => plan.id === selectedId) ?? null;
+  const changingStripePlan = Boolean(
+    hasActiveAccess &&
+      currentSubscription?.provider === "stripe" &&
+      currentSubscription.provider_subscription_id?.startsWith("sub_")
+  );
+  const selectedCurrentPlan = selectedPlan?.id === currentSubscription?.plan_id;
 
   async function startTrial() {
     setStartingTrial(true);
@@ -101,10 +109,18 @@ export function SubscriptionModal({
     idempotencyKey.current ||= crypto.randomUUID();
 
     try {
-      const response = await fetch("/api/subscriptions/checkout", {
+      const response = await fetch(
+        changingStripePlan
+          ? "/api/subscriptions/change-plan"
+          : "/api/subscriptions/checkout",
+        {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: selectedPlan.id, idempotencyKey: idempotencyKey.current })
+        body: JSON.stringify(
+          changingStripePlan
+            ? { planId: selectedPlan.id }
+            : { planId: selectedPlan.id, idempotencyKey: idempotencyKey.current }
+        )
       });
       const payload: unknown = await response.json().catch(() => null);
       if (response.status === 401) {
@@ -114,6 +130,31 @@ export function SubscriptionModal({
         return;
       }
       if (!response.ok) throw new Error(readError(payload));
+      if (
+        changingStripePlan &&
+        payload &&
+        typeof payload === "object" &&
+        "applied" in payload
+      ) {
+        if (
+          payload.applied === true &&
+          "subscription" in payload &&
+          payload.subscription
+        ) {
+          onActivated(payload.subscription as NonNullable<CurrentSubscription>);
+          return;
+        }
+        if (
+          "paymentUrl" in payload &&
+          typeof payload.paymentUrl === "string"
+        ) {
+          window.location.assign(payload.paymentUrl);
+          return;
+        }
+        throw new Error(
+          "Stripe chưa xác nhận khoản chênh lệch. Hãy kiểm tra phương thức thanh toán rồi thử lại."
+        );
+      }
       if (
         payload &&
         typeof payload === "object" &&
@@ -145,7 +186,7 @@ export function SubscriptionModal({
           </div>
         )}
         <h2>Ăn đúng kế hoạch,<br />nhẹ đầu mỗi ngày.</h2>
-        <p>Mở khóa bộ công cụ giúp bạn biến mục tiêu thành thói quen thực tế. Gói được tự động gia hạn và có thể hủy bất cứ lúc nào.</p>
+        <p>{changingStripePlan ? "Chọn chu kỳ mới. Stripe sẽ tính phần chênh lệch và chỉ đổi gói sau khi thanh toán thành công." : "Mở khóa bộ công cụ giúp bạn biến mục tiêu thành thói quen thực tế. Gói được tự động gia hạn và có thể hủy bất cứ lúc nào."}</p>
         <div className="benefit-list">
           <div><CheckCircle2 /><span><strong>Thực đơn cá nhân hóa</strong><small>Recipe, định lượng và dinh dưỡng chi tiết</small></span></div>
           <div><CheckCircle2 /><span><strong>AI Health Insight đầy đủ</strong><small>Quan sát và đề xuất dựa trên hồ sơ hiện hành</small></span></div>
@@ -172,16 +213,16 @@ export function SubscriptionModal({
               {plan.code === "monthly" && <span className="subscription-option__badge">Phổ biến</span>}
               <strong>{planDuration(plan)}</strong>
               <b>{formatPrice(plan.price_amount, plan.currency)}</b>
-              <small>{plan.code === "quarterly" ? "Tiết kiệm nhất" : plan.description}</small>
+              <small>{plan.id === currentSubscription?.plan_id ? "Gói hiện tại" : plan.code === "quarterly" ? "Tiết kiệm nhất" : plan.description}</small>
             </button>
           ))}
         </div>}
 
         {selectedPlan && <div className="subscription-price"><div><strong>{formatPrice(selectedPlan.price_amount, selectedPlan.currency)}</strong><span> / {planDuration(selectedPlan)}</span></div><small>Tự động gia hạn mỗi {planDuration(selectedPlan)} · Có thể tắt trong Cài đặt · Không bao gồm tiền món bếp</small></div>}
         {error && <div className="subscription-error"><AlertCircle size={17} /><span>{error}</span></div>}
-        <button className="button button--cream button--full" disabled={!selectedPlan || checkingOut || startingTrial} onClick={() => void checkout()}>
+        <button className="button button--cream button--full" disabled={!selectedPlan || selectedCurrentPlan || checkingOut || startingTrial} onClick={() => void checkout()}>
           {checkingOut ? <LoaderCircle className="spin" size={18} /> : <LockKeyhole size={18} />}
-          {checkingOut ? "Đang mở cổng thanh toán…" : selectedPlan ? `Đăng ký gói ${planDuration(selectedPlan)}` : "Chọn một gói"}
+          {checkingOut ? "Đang xử lý với Stripe…" : selectedCurrentPlan ? "Đây là gói hiện tại" : selectedPlan ? `${changingStripePlan ? "Đổi sang" : "Đăng ký"} gói ${planDuration(selectedPlan)}` : "Chọn một gói"}
           {!checkingOut && <ArrowRight size={18} />}
         </button>
         <small className="demo-caption">Thanh toán được xử lý bảo mật bởi Stripe. NutriPlan không lưu thông tin thẻ.</small>

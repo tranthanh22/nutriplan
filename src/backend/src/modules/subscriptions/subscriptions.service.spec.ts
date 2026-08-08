@@ -547,4 +547,109 @@ describe('SubscriptionsService cancellation', () => {
       cancel_at_period_end: false,
     });
   });
+
+  it('changes an active Stripe plan only after the prorated payment succeeds', async () => {
+    const current = {
+      id: '77777777-7777-4777-8777-777777777777',
+      plan_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      status: 'active',
+      provider: 'stripe',
+      provider_subscription_id: 'sub_test_recurring',
+      current_period_end: '2099-08-28T00:00:00.000Z',
+    };
+    const changed = {
+      ...current,
+      plan_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    };
+    const planQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          id: changed.plan_id,
+          code: 'quarterly',
+          name: 'Plus 3 tháng',
+          description: null,
+          price_amount: 399000,
+          currency: 'VND',
+          billing_interval: 'month',
+          interval_count: 3,
+        },
+        error: null,
+      }),
+    };
+    const supabase = {
+      getAdminClient: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue(planQuery),
+      }),
+    };
+    const service = new SubscriptionsService(
+      supabase as never,
+      createConfig(),
+    );
+    const stripeSubscription = {
+      id: current.provider_subscription_id,
+      object: 'subscription',
+      items: {
+        data: [
+          {
+            id: 'si_current',
+            price: { product: 'prod_nutriplan' },
+          },
+        ],
+      },
+      metadata: {},
+      pending_update: null,
+    } as unknown as Stripe.Subscription;
+    const changedStripeSubscription = {
+      ...stripeSubscription,
+      metadata: {
+        nutriplanPlanId: changed.plan_id,
+        nutriplanPlanCode: 'quarterly',
+      },
+    } as Stripe.Subscription;
+    const retrieve = jest.fn().mockResolvedValue(stripeSubscription);
+    const update = jest
+      .fn()
+      .mockResolvedValueOnce(stripeSubscription)
+      .mockResolvedValueOnce(changedStripeSubscription);
+    const createPrice = jest.fn().mockResolvedValue({ id: 'price_quarterly' });
+    Object.defineProperty(service, 'stripeClient', {
+      configurable: true,
+      value: {
+        subscriptions: { retrieve, update },
+        prices: { create: createPrice },
+      },
+    });
+    const internal = service as unknown as {
+      syncStripeSubscription: (
+        subscription: Stripe.Subscription,
+        planId?: string,
+      ) => Promise<void>;
+    };
+    jest.spyOn(internal, 'syncStripeSubscription').mockResolvedValue();
+    jest
+      .spyOn(service, 'current')
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(changed);
+
+    await expect(service.changePlan(user, changed.plan_id)).resolves.toEqual({
+      applied: true,
+      unchanged: false,
+      subscription: changed,
+    });
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      current.provider_subscription_id,
+      expect.objectContaining({
+        items: [{ id: 'si_current', price: 'price_quarterly', quantity: 1 }],
+        payment_behavior: 'pending_if_incomplete',
+        proration_behavior: 'always_invoice',
+      }),
+    );
+    expect(internal.syncStripeSubscription).toHaveBeenCalledWith(
+      changedStripeSubscription,
+      changed.plan_id,
+    );
+  });
 });

@@ -173,7 +173,8 @@ export class SubscriptionsService {
       current &&
       ['active', 'cancel_at_period_end'].includes(String(current.status)) &&
       current.current_period_end &&
-      new Date(String(current.current_period_end)) > new Date()
+      new Date(String(current.current_period_end)) > new Date() &&
+      String(current.provider) !== 'internal_trial'
     ) {
       throw new BadRequestException(
         'Bạn đang có gói Plus còn hiệu lực. Hãy quản lý tự động gia hạn trong Cài đặt.',
@@ -403,6 +404,134 @@ export class SubscriptionsService {
         error instanceof Error
           ? error.message
           : 'Không thể mở trang quản lý thanh toán Stripe',
+      );
+    }
+  }
+
+  async changePlan(user: AuthUser, planId: string) {
+    const current = await this.current(user);
+    const providerSubscriptionId = String(
+      current?.provider_subscription_id ?? '',
+    );
+    if (
+      !current ||
+      !['active', 'cancel_at_period_end'].includes(String(current.status)) ||
+      String(current.provider) !== 'stripe' ||
+      !providerSubscriptionId.startsWith('sub_')
+    ) {
+      throw new BadRequestException(
+        'Gói hiện tại chưa phải subscription Stripe. Hãy chọn gói để mở trang thanh toán.',
+      );
+    }
+
+    const admin = this.supabase.getAdminClient();
+    const { data: plan, error: planError } = await admin
+      .from('subscription_plans')
+      .select(
+        'id, code, name, description, price_amount, currency, billing_interval, interval_count',
+      )
+      .eq('id', planId)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (planError) throw new InternalServerErrorException(planError.message);
+    if (!plan) {
+      throw new BadRequestException('Gói mới không tồn tại hoặc đã ngừng bán');
+    }
+    if (String(current.plan_id) === String(plan.id)) {
+      return { applied: true, unchanged: true, subscription: current };
+    }
+    if (!['day', 'month', 'year'].includes(String(plan.billing_interval))) {
+      throw new InternalServerErrorException(
+        'Chu kỳ gói mới chưa được Stripe hỗ trợ',
+      );
+    }
+
+    const stripe = this.getStripe();
+    try {
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        providerSubscriptionId,
+      );
+      const item = stripeSubscription.items.data[0];
+      if (!item) {
+        throw new BadRequestException(
+          'Subscription Stripe hiện tại không có gói để thay đổi',
+        );
+      }
+      const productId =
+        typeof item.price.product === 'string'
+          ? item.price.product
+          : item.price.product.id;
+      const amount = Math.round(Number(plan.price_amount));
+      const intervalCount = Number(plan.interval_count);
+      const price = await stripe.prices.create(
+        {
+          product: productId,
+          currency: String(plan.currency).toLowerCase(),
+          unit_amount: amount,
+          recurring: {
+            interval: plan.billing_interval as 'day' | 'month' | 'year',
+            interval_count: intervalCount,
+          },
+          nickname: String(plan.name),
+          metadata: {
+            nutriplanPlanId: String(plan.id),
+            nutriplanPlanCode: String(plan.code),
+          },
+        },
+        {
+          idempotencyKey: `nutriplan-price:${plan.id}:${amount}:${plan.billing_interval}:${intervalCount}`,
+        },
+      );
+
+      let updated = await stripe.subscriptions.update(
+        providerSubscriptionId,
+        {
+          items: [{ id: item.id, price: price.id, quantity: 1 }],
+          payment_behavior: 'pending_if_incomplete',
+          proration_behavior: 'always_invoice',
+          expand: ['latest_invoice'],
+        },
+      );
+      if (updated.pending_update) {
+        const invoice =
+          typeof updated.latest_invoice === 'object'
+            ? updated.latest_invoice
+            : null;
+        return {
+          applied: false,
+          requiresPayment: true,
+          paymentUrl: invoice?.hosted_invoice_url ?? null,
+          message:
+            'Stripe cần xác nhận khoản chênh lệch trước khi áp dụng gói mới.',
+        };
+      }
+
+      updated = await stripe.subscriptions.update(providerSubscriptionId, {
+        cancel_at_period_end: false,
+        metadata: {
+          ...updated.metadata,
+          nutriplanPlanId: String(plan.id),
+          nutriplanPlanCode: String(plan.code),
+        },
+      });
+      await this.syncStripeSubscription(updated, String(plan.id));
+      return {
+        applied: true,
+        unchanged: false,
+        subscription: await this.current(user),
+      };
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ServiceUnavailableException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw new BadGatewayException(
+        error instanceof Error
+          ? error.message
+          : 'Không thể đổi gói trên Stripe',
       );
     }
   }
@@ -860,7 +989,10 @@ export class SubscriptionsService {
     };
   }
 
-  private async syncStripeSubscription(subscription: Stripe.Subscription) {
+  private async syncStripeSubscription(
+    subscription: Stripe.Subscription,
+    explicitPlanId?: string,
+  ) {
     const period = this.stripeSubscriptionPeriod(subscription);
     const ended = subscription.status === 'canceled';
     const entitled = ['active', 'trialing'].includes(subscription.status);
@@ -872,6 +1004,7 @@ export class SubscriptionsService {
           : 'active'
         : 'payment_failed';
     const timestamp = new Date().toISOString();
+    const planId = explicitPlanId ?? subscription.metadata.nutriplanPlanId;
     const { error } = await this.supabase
       .getAdminClient()
       .from('subscriptions')
@@ -888,6 +1021,7 @@ export class SubscriptionsService {
               current_period_end: period.end,
             }
           : {}),
+        ...(planId ? { plan_id: planId } : {}),
         updated_at: timestamp,
       })
       .eq('provider_subscription_id', subscription.id);

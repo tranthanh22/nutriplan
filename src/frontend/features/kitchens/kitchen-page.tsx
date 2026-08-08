@@ -1,13 +1,33 @@
 "use client";
 
-import { MapPin, Search, ShieldCheck, SlidersHorizontal, Sparkles, Utensils, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertCircle, LoaderCircle, MapPin, Search, ShieldCheck, SlidersHorizontal, Sparkles, Utensils, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { KitchenOffer } from "@/lib/data";
 import { KitchenOfferCard } from "./kitchen-offer-card";
 import { KitchenOfferDetailModal } from "./kitchen-offer-detail-modal";
-import { kitchenDietTypes, kitchenLocations, kitchenOffers } from "./kitchen-mock-data";
 
 type DurationFilter = "all" | "1" | "7" | "30" | "120";
+
+type RecommendationResponse = {
+  personalized: boolean;
+  excludedCount: number;
+  profile: {
+    goal: "lose_weight" | "maintain" | "gain_muscle";
+    targetCaloriesKcal: number;
+    targetProteinG: number;
+    targetCarbsG: number;
+    targetFatG: number;
+    dietaryPreferences: string[];
+    district: string | null;
+  };
+  offers: KitchenOffer[];
+};
+
+const goalLabels = {
+  lose_weight: "giảm cân",
+  maintain: "duy trì cân nặng",
+  gain_muscle: "tăng cơ"
+};
 
 export function KitchenPage({
   subscribed,
@@ -22,6 +42,46 @@ export function KitchenPage({
   const [dietType, setDietType] = useState("all");
   const [sort, setSort] = useState("recommended");
   const [selectedOffer, setSelectedOffer] = useState<KitchenOffer | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError("");
+    void fetch("/api/kitchens/recommendations", {
+      cache: "no-store",
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.message ?? "Không thể tải đề xuất gói bếp.");
+        }
+        return payload as RecommendationResponse;
+      })
+      .then((payload) => setRecommendations(payload))
+      .catch((requestError) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setError(requestError instanceof Error ? requestError.message : "Không thể tải đề xuất gói bếp.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [retryKey]);
+
+  const kitchenOffers = recommendations?.offers ?? [];
+  const kitchenLocations = useMemo(
+    () => Array.from(new Set(kitchenOffers.map((offer) => offer.location))).sort(),
+    [kitchenOffers]
+  );
+  const kitchenDietTypes = useMemo(
+    () => Array.from(new Set(kitchenOffers.flatMap((offer) => offer.dietTypes))).sort(),
+    [kitchenOffers]
+  );
 
   const offers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("vi");
@@ -39,9 +99,9 @@ export function KitchenPage({
       if (sort === "price-low") return first.price - second.price;
       if (sort === "rating") return second.rating - first.rating;
       if (sort === "distance") return first.distanceKm - second.distanceKm;
-      return (second.rating * Math.log10(second.reviews + 10)) - (first.rating * Math.log10(first.reviews + 10));
+      return (second.matchScore ?? 0) - (first.matchScore ?? 0) || second.rating - first.rating;
     });
-  }, [dietType, duration, location, query, sort]);
+  }, [dietType, duration, kitchenOffers, location, query, sort]);
 
   const hasFilters = Boolean(query || duration !== "all" || location !== "all" || dietType !== "all");
   const clearFilters = () => {
@@ -55,12 +115,30 @@ export function KitchenPage({
     <div className="page-content">
       <section className="page-title kitchen-title">
         <div>
-          <p className="eyebrow">20 BẾP ĐỐI TÁC ĐÃ XÁC MINH</p>
-          <h1>Bữa ăn phù hợp, giao tận nơi</h1>
-          <p>Chọn món lẻ hoặc gói 7, 30, 120 ngày mà không cần NutriPlan Subscription.</p>
+          <p className="eyebrow">ĐỀ XUẤT BẾP ĐƯỢC CÁ NHÂN HÓA</p>
+          <h1>Bữa ăn phù hợp với mục tiêu của bạn</h1>
+          <p>NutriPlan so khớp calorie, macro, chế độ ăn và dị ứng trước khi xếp hạng gói.</p>
         </div>
         <span className="independent-pill"><ShieldCheck size={17} /> Không yêu cầu Plus</span>
       </section>
+
+      {loading && (
+        <div className="kitchen-loading" role="status" aria-live="polite">
+          <LoaderCircle size={28} className="spin" />
+          <div><strong>Đang phân tích các gói phù hợp...</strong><span>So sánh với calorie, macro và mục tiêu hiện tại của bạn.</span></div>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="empty-state kitchen-error" role="alert">
+          <AlertCircle size={30} />
+          <h3>Chưa thể tạo đề xuất</h3>
+          <p>{error}</p>
+          <button className="button button--dark" onClick={() => setRetryKey((value) => value + 1)}>Thử lại</button>
+        </div>
+      )}
+
+      {!loading && !error && recommendations && <>
 
       <section className="kitchen-filter-panel" aria-label="Bộ lọc bếp và gói ăn">
         <div className="search-box kitchen-search">
@@ -99,8 +177,14 @@ export function KitchenPage({
       <div className="market-note">
         <div>
           <Sparkles size={19} />
-          <span>{subscribed ? "Bạn đang dùng Plus: món được giao sẽ tự động ghi vào Meal Log." : "Bạn vẫn có thể mua bình thường. Plus chỉ cần khi muốn tự động theo dõi và phân tích dinh dưỡng."}</span>
+          <span>
+            Mục tiêu <strong>{recommendations.profile.targetCaloriesKcal.toLocaleString("vi-VN")} kcal/ngày</strong>
+            {` · ${goalLabels[recommendations.profile.goal]}`}
+            {recommendations.profile.dietaryPreferences.length > 0 ? ` · ${recommendations.profile.dietaryPreferences.join(", ")}` : ""}.
+            {recommendations.excludedCount > 0 ? ` Đã loại ${recommendations.excludedCount} gói xung đột dị ứng hoặc không dung nạp.` : ""}
+          </span>
         </div>
+        <small>{subscribed ? "Plus đang hoạt động: món đã ăn sẽ được phân tích trong Meal Log." : "Bạn có thể mua gói bếp mà không cần Plus."}</small>
       </div>
 
       <div className="kitchen-results-bar">
@@ -138,6 +222,7 @@ export function KitchenPage({
           }}
         />
       )}
+      </>}
     </div>
   );
 }

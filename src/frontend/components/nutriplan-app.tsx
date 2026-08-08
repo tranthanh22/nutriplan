@@ -434,7 +434,10 @@ export function NutriPlanApp() {
           />
         )}
         {view === "settings" && (
-          <SettingsPage onChangePlan={() => setSubscribeOpen(true)} />
+          <SettingsPage
+            key={`${subscriptionAccess?.id ?? "free"}:${subscriptionAccess?.plan_id ?? "none"}:${subscriptionAccess?.status ?? "inactive"}`}
+            onChangePlan={() => setSubscribeOpen(true)}
+          />
         )}
         {view === "kitchen-management" && (role === "kitchen_staff" || role === "admin") && (
           <KitchenManagementPage />
@@ -497,11 +500,16 @@ export function NutriPlanApp() {
       {subscribeOpen && (
         <SubscriptionModal
           hasActiveAccess={subscribed}
+          currentSubscription={subscriptionAccess}
           onActivated={(subscription) => {
             setSubscriptionAccess(subscription);
             setSubscribeOpen(false);
             setMenuRevision((current) => current + 1);
-            setToast("Đã kích hoạt dùng thử NutriPlan Plus trong 7 ngày.");
+            setToast(
+              subscription.provider === "internal_trial"
+                ? "Đã kích hoạt dùng thử NutriPlan Plus trong 7 ngày."
+                : "Gói NutriPlan Plus đã được cập nhật."
+            );
           }}
           onClose={() => setSubscribeOpen(false)}
         />
